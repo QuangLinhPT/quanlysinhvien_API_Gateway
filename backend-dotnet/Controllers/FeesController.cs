@@ -18,7 +18,7 @@ public class FeesController : ControllerBase
 
     // Route lấy thông tin danh sách học phí
     [HttpGet]
-    public async Task<IActionResult> GetFees([FromQuery] int? student_id, [FromQuery] string? status)
+    public async Task<IActionResult> GetFees([FromQuery] int? student_id, [FromQuery] int? class_id, [FromQuery] string? status)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         using var conn = _dbFactory.CreateConnection();
@@ -40,13 +40,21 @@ public class FeesController : ControllerBase
             sql += " AND f.student_id = @student_id";
             parameters.Add("student_id", myStudentId.Value);
         }
-        else if (student_id.HasValue)
+        else
         {
-            sql += " AND f.student_id = @student_id";
-            parameters.Add("student_id", student_id.Value);
+            if (student_id.HasValue)
+            {
+                sql += " AND f.student_id = @student_id";
+                parameters.Add("student_id", student_id.Value);
+            }
+            if (class_id.HasValue)
+            {
+                sql += " AND s.class_id = @class_id";
+                parameters.Add("class_id", class_id.Value);
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(status))
+        if (!string.IsNullOrWhiteSpace(status) && status != "all")
         {
             sql += " AND f.status = @status";
             parameters.Add("status", status);

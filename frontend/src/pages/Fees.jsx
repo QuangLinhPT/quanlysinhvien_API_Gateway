@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { Plus, Loader2, Wallet, Receipt, ShieldAlert } from 'lucide-react'
+import { Plus, Loader2, Wallet, Receipt, ShieldAlert, Filter } from 'lucide-react'
 
 function formatVND(amount) {
   return new Intl.NumberFormat('vi-VN').format(amount || 0) + ' VNĐ';
@@ -20,18 +20,28 @@ export default function Fees() {
   const { user } = useAuth()
   const toast = useToast()
 
-  // 1. Phân quyền vai trò chuẩn xác
   const isTeacher = user.role === 'teacher'
   const canEdit = ['admin', 'staff'].includes(user.role)
 
   const [rows, setRows] = useState(null)
+  const [classes, setClasses] = useState([])
   const [students, setStudents] = useState([])
   const [adding, setAdding] = useState(false)
+
+  // State bộ lọc
+  const [filterClass, setFilterClass] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
+
   const [form, setForm] = useState({ student_id: '', total_amount: '', paid_amount: '0', academic_year: '2025-2026', description: '' })
 
   async function load() {
     try {
-      const { data } = await api.get('/fees')
+      const q = new URLSearchParams()
+      if (filterClass) q.append('class_id', filterClass)
+      if (filterStatus !== 'all') q.append('status', filterStatus)
+
+      const url = '/fees' + (q.toString() ? `?${q.toString()}` : '')
+      const { data } = await api.get(url)
       setRows(Array.isArray(data) ? data : [])
     } catch (e) {
       setRows([])
@@ -39,11 +49,30 @@ export default function Fees() {
   }
 
   useEffect(() => {
+    let active = true
+    if (!isTeacher) {
+      if (canEdit) {
+        Promise.all([
+          api.get('/classes'),
+          api.get('/students')
+        ]).then(([cRes, sRes]) => {
+          if (active) {
+            setClasses(cRes.data || [])
+            setStudents(sRes.data || [])
+          }
+        }).catch(() => {})
+      }
+    }
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
     if (!isTeacher) {
       load()
-      if (canEdit) api.get('/students').then(r => setStudents(r.data || [])).catch(() => {})
     }
-  }, [])
+    return () => { active = false }
+  }, [filterClass, filterStatus])
 
   async function add(e) {
     e.preventDefault()
@@ -70,7 +99,6 @@ export default function Fees() {
     }
   }
 
-  // 2. Chặn vai trò Giảng viên không có quyền truy cập Học phí
   if (isTeacher) {
     return (
       <div className="card p-12 text-center text-slate-500 space-y-3">
@@ -83,13 +111,33 @@ export default function Fees() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center flex-wrap justify-between gap-3">
         <h2 className="text-xl font-bold text-slate-800">{user.role === 'student' ? 'Học Phí Của Tôi' : 'Quản Lý Học Phí'}</h2>
-        {canEdit && <button className="ml-auto btn-primary" onClick={() => setAdding(!adding)}><Plus className="w-4 h-4" />Tạo khoản thu mới</button>}
+        {canEdit && <button className="btn-primary" onClick={() => setAdding(!adding)}><Plus className="w-4 h-4" />Tạo khoản thu mới</button>}
       </div>
 
+      {/* Filter Bar */}
+      {user.role !== 'student' && (
+        <div className="card p-4 flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Filter className="w-4 h-4 text-brand-600" /> Lọc học phí:
+          </div>
+          <select className="input w-48 text-sm" value={filterClass} onChange={(e) => setFilterClass(e.target.value)}>
+            <option value="">-- Tất cả các lớp --</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+
+          <select className="input w-48 text-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="all">Tất cả trạng thái</option>
+            <option value="paid">Đã hoàn thành</option>
+            <option value="partial">Thanh toán 1 phần</option>
+            <option value="pending">Chưa nộp (Pending)</option>
+          </select>
+        </div>
+      )}
+
       {adding && canEdit && (
-        <form onSubmit={add} className="card p-5 grid sm:grid-cols-5 gap-3 items-end">
+        <form onSubmit={add} className="card p-5 grid sm:grid-cols-5 gap-3 items-end border-l-4 border-l-brand-600">
           <div className="sm:col-span-2">
             <label className="label">Sinh viên *</label>
             <select required className="input" value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })}>
@@ -113,13 +161,13 @@ export default function Fees() {
         {!rows ? (
           <div className="p-12 grid place-items-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
         ) : rows.length === 0 ? (
-          <div className="p-12 text-center text-slate-400"><Wallet className="w-10 h-10 mx-auto mb-2 opacity-40" />Chưa có dữ liệu học phí nào</div>
+          <div className="p-12 text-center text-slate-400"><Wallet className="w-10 h-10 mx-auto mb-2 opacity-40" />Chưa có dữ liệu học phí nào phù hợp</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-slate-700">
-                  {user.role !== 'student' && <><th>MSSV</th><th>Sinh viên</th></>}
+                  {user.role !== 'student' && <><th>MSSV</th><th>Sinh viên</th><th>Lớp</th></>}
                   <th>Tổng phải nộp</th>
                   <th>Đã nộp</th>
                   <th>Còn nợ</th>
@@ -135,6 +183,7 @@ export default function Fees() {
                       <>
                         <td className="font-mono text-xs font-bold text-brand-700">{r.roll_number}</td>
                         <td className="font-semibold text-slate-800">{r.student_name}</td>
+                        <td className="text-xs text-slate-600 font-medium">{r.class_name || '—'}</td>
                       </>
                     )}
                     <td className="font-medium text-slate-800">{formatVND(r.total_amount)}</td>

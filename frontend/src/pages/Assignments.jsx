@@ -7,7 +7,7 @@ import { Plus, Loader2, FileText, Upload, Download, Filter, Calendar, Clock, Che
 export default function Assignments() {
   const { user } = useAuth()
   const toast = useToast()
-  const canPost = ['admin','teacher'].includes(user.role)
+  const canPost = ['admin', 'teacher'].includes(user.role)
   const [rows, setRows] = useState(null)
   const [classes, setClasses] = useState([])
   const [subjects, setSubjects] = useState([])
@@ -17,35 +17,43 @@ export default function Assignments() {
   // Filter state
   const [filterClass, setFilterClass] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all') // 'all', 'active', 'expired'
+  const [filterStatus, setFilterStatus] = useState('all')
 
-  const [form, setForm] = useState({ title:'', description:'', class_id:'', subject_id:'', due_date:'', file:null })
+  const [form, setForm] = useState({ title: '', description: '', class_id: '', subject_id: '', due_date: '', file: null })
 
-  async function load() {
-    const params = new URLSearchParams()
-    if (filterClass) params.append('class_id', filterClass)
-    if (filterSubject) params.append('subject_id', filterSubject)
-    if (filterStatus !== 'all') params.append('status', filterStatus)
+  async function load(activeRef = { current: true }) {
+    try {
+      const params = new URLSearchParams()
+      if (filterClass) params.append('class_id', filterClass)
+      if (filterSubject) params.append('subject_id', filterSubject)
+      if (filterStatus !== 'all') params.append('status', filterStatus)
 
-    const q = params.toString() ? `?${params.toString()}` : ''
-    const { data } = await api.get('/assignments' + q)
-    setRows(data)
+      const q = params.toString() ? `?${params.toString()}` : ''
+      const { data } = await api.get('/assignments' + q)
+      if (activeRef.current) setRows(Array.isArray(data) ? data : [])
+    } catch (e) {
+      if (activeRef.current) setRows([])
+    }
   }
 
   useEffect(() => {
-    api.get('/classes').then(r => setClasses(r.data))
+    let mounted = true
+    api.get('/classes').then(r => { if (mounted) setClasses(r.data || []) }).catch(() => {})
+    return () => { mounted = false }
   }, [])
 
   useEffect(() => {
     if (form.class_id) {
-      api.get(`/classes/${form.class_id}/subjects`).then(r => setSubjects(r.data))
+      api.get(`/classes/${form.class_id}/subjects`).then(r => setSubjects(r.data || [])).catch(() => {})
     } else {
       setSubjects([])
     }
   }, [form.class_id])
 
   useEffect(() => {
-    load()
+    const activeRef = { current: true }
+    load(activeRef)
+    return () => { activeRef.current = false }
   }, [filterClass, filterSubject, filterStatus])
 
   async function add(e) {
@@ -83,7 +91,7 @@ export default function Assignments() {
     if (!dueDate) return false
     const d = new Date(dueDate)
     const today = new Date()
-    today.setHours(0,0,0,0)
+    today.setHours(0, 0, 0, 0)
     return d < today
   }
 
@@ -104,7 +112,7 @@ export default function Assignments() {
       </div>
 
       {/* Filter Bar */}
-      <div className="card p-4 flex flex-wrap items-center gap-3 bg-slate-50">
+      <div className="card p-4 flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           <Filter className="w-4 h-4 text-brand-600" /> Bộ lọc:
         </div>
@@ -121,7 +129,7 @@ export default function Assignments() {
       </div>
 
       {adding && (
-        <form onSubmit={add} className="card p-5 space-y-3">
+        <form onSubmit={add} className="card p-5 space-y-3 border-l-4 border-l-brand-600">
           <div className="grid sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
               <label className="label">Tiêu đề bài tập *</label>
@@ -204,7 +212,6 @@ export default function Assignments() {
 
                   <h3 className="font-bold text-slate-800 text-lg mt-2">{a.title}</h3>
 
-                  {/* Timestamps */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-2">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -217,7 +224,6 @@ export default function Assignments() {
                     <span>GV: <strong>{a.teacher_name || 'Hệ thống'}</strong></span>
                   </div>
 
-                  {/* Description preview / full */}
                   {desc && (
                     <div className="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <div className="whitespace-pre-wrap">

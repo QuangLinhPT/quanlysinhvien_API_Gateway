@@ -38,11 +38,16 @@ export default function Fees() {
     try {
       const q = new URLSearchParams()
       if (filterClass) q.append('class_id', filterClass)
-      if (filterStatus !== 'all') q.append('status', filterStatus)
+      if (filterStatus && filterStatus !== 'all') q.append('status', filterStatus)
 
       const url = '/fees' + (q.toString() ? `?${q.toString()}` : '')
       const { data } = await api.get(url)
-      setRows(Array.isArray(data) ? data : [])
+      
+      let list = Array.isArray(data) ? data : []
+      if (filterClass) {
+        list = list.filter(item => String(item.class_id) === String(filterClass))
+      }
+      setRows(list)
     } catch (e) {
       setRows([])
     }

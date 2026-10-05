@@ -24,7 +24,7 @@ public class FeesController : ControllerBase
         using var conn = _dbFactory.CreateConnection();
 
         var sql = @"
-            SELECT TOP 1000 f.*, u.full_name AS student_name, s.roll_number, c.name AS class_name
+            SELECT TOP 1000 f.*, u.full_name AS student_name, s.roll_number, s.class_id, c.name AS class_name
             FROM dbo.fees f
             JOIN dbo.students s ON s.id = f.student_id
             JOIN dbo.users u ON u.id = s.user_id

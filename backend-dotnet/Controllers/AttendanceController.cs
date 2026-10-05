@@ -1,3 +1,4 @@
+// Controller API quản lý Điểm danh Học sinh (.NET Core Microservice)
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using backend_dotnet.Data;
@@ -15,6 +16,7 @@ public class AttendanceController : ControllerBase
         _dbFactory = dbFactory;
     }
 
+    // Route truy vấn dữ liệu điểm danh theo lớp, phân đoạn, ngày hoặc học sinh
     [HttpGet]
     public async Task<IActionResult> GetAttendance(
         [FromQuery] int? class_id,
@@ -81,6 +83,7 @@ public class AttendanceController : ControllerBase
         return Ok(list);
     }
 
+    // DTO thông tin bản ghi điểm danh
     public class AttendanceRecordDto
     {
         public int Student_Id { get; set; }
@@ -88,6 +91,7 @@ public class AttendanceController : ControllerBase
         public string? Remarks { get; set; }
     }
 
+    // DTO điểm danh theo danh sách
     public class MarkAttendanceDto
     {
         public string Date { get; set; } = string.Empty;
@@ -96,18 +100,19 @@ public class AttendanceController : ControllerBase
         public int? Section_Id { get; set; }
     }
 
+    // Route điểm danh danh sách học sinh (Admin, Teacher, Staff)
     [HttpPost("mark")]
     public async Task<IActionResult> MarkAttendance([FromBody] MarkAttendanceDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "teacher" && user.Role != "staff")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         if (string.IsNullOrWhiteSpace(dto.Date) || dto.Records == null || dto.Records.Count == 0)
         {
-            return BadRequest(new { error = "date and records[] required" });
+            return BadRequest(new { error = "Ngày điểm danh và danh sách bản ghi là bắt buộc" });
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -144,6 +149,7 @@ public class AttendanceController : ControllerBase
         return Ok(new { count = results.Count, records = results });
     }
 
+    // Route lấy thống kê tỷ lệ chuyên cần của một học sinh
     [HttpGet("stats/{studentId:int}")]
     public async Task<IActionResult> GetStats(int studentId)
     {
@@ -155,7 +161,7 @@ public class AttendanceController : ControllerBase
             var myStudentId = await conn.QueryFirstOrDefaultAsync<int?>("SELECT id FROM dbo.students WHERE user_id = @user_id", new { user_id = user.UserId });
             if (!myStudentId.HasValue || myStudentId.Value != studentId)
             {
-                return StatusCode(403, new { error = "Forbidden" });
+                return StatusCode(403, new { error = "Truy cập bị từ chối" });
             }
         }
 
@@ -169,7 +175,7 @@ public class AttendanceController : ControllerBase
             FROM dbo.attendance WHERE student_id = @studentId";
 
         var stat = (await conn.QueryFirstOrDefaultAsync(sql, new { studentId })) as IDictionary<string, object>;
-        if (stat == null) return NotFound(new { error = "Student not found" });
+        if (stat == null) return NotFound(new { error = "Không tìm thấy thông tin học sinh" });
 
         int total = Convert.ToInt32(stat["total"] ?? 0);
         int present = Convert.ToInt32(stat["present"] ?? 0);

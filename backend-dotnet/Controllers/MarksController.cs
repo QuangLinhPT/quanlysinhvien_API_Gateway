@@ -1,3 +1,4 @@
+// Controller API quản lý Điểm thi và Kỳ thi (Exams & Marks) (.NET Core Microservice)
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using backend_dotnet.Data;
@@ -15,6 +16,7 @@ public class MarksController : ControllerBase
         _dbFactory = dbFactory;
     }
 
+    // Route lấy danh sách các kỳ thi
     [HttpGet("exams")]
     public async Task<IActionResult> GetExams([FromQuery] int? class_id)
     {
@@ -39,6 +41,7 @@ public class MarksController : ControllerBase
         return Ok(exams);
     }
 
+    // DTO tạo kỳ thi mới
     public class CreateExamDto
     {
         public string Name { get; set; } = string.Empty;
@@ -48,13 +51,14 @@ public class MarksController : ControllerBase
         public string? Academic_Year { get; set; }
     }
 
+    // Route tạo kỳ thi mới (Admin/Teacher)
     [HttpPost("exams")]
     public async Task<IActionResult> CreateExam([FromBody] CreateExamDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "teacher")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -75,6 +79,7 @@ public class MarksController : ControllerBase
         return StatusCode(201, exam);
     }
 
+    // DTO cập nhật kỳ thi
     public class UpdateExamDto
     {
         public string? Name { get; set; }
@@ -83,13 +88,14 @@ public class MarksController : ControllerBase
         public bool? Is_Published { get; set; }
     }
 
+    // Route cập nhật kỳ thi (Admin/Teacher)
     [HttpPut("exams/{id:int}")]
     public async Task<IActionResult> UpdateExam(int id, [FromBody] UpdateExamDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "teacher")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -113,17 +119,19 @@ public class MarksController : ControllerBase
         return Ok(new { ok = true });
     }
 
+    // Route xóa kỳ thi (Admin)
     [HttpDelete("exams/{id:int}")]
     public async Task<IActionResult> DeleteExam(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM dbo.exams WHERE id = @id", new { id });
         return Ok(new { ok = true });
     }
 
+    // Route lấy bảng điểm của học sinh / kỳ thi
     [HttpGet]
     public async Task<IActionResult> GetMarks([FromQuery] int? exam_id, [FromQuery] int? student_id)
     {
@@ -165,6 +173,7 @@ public class MarksController : ControllerBase
         return Ok(marks);
     }
 
+    // DTO nhập/cập nhật điểm môn học
     public class CreateMarkDto
     {
         public int Student_Id { get; set; }
@@ -175,13 +184,14 @@ public class MarksController : ControllerBase
         public string? Remarks { get; set; }
     }
 
+    // Route nhập điểm hoặc cập nhật điểm học sinh
     [HttpPost]
     public async Task<IActionResult> CreateOrUpdateMark([FromBody] CreateMarkDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "teacher")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -210,13 +220,14 @@ public class MarksController : ControllerBase
         return StatusCode(201, mark);
     }
 
+    // Route xóa bản ghi điểm
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteMark(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "teacher")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         using var conn = _dbFactory.CreateConnection();

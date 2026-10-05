@@ -80,9 +80,9 @@ Truy cập `http://localhost:5173` để trải nghiệm ứng dụng.
 
 | Dịch vụ | Công nghệ | Cổng | Vai trò & Nhiệm vụ tích hợp |
 | :--- | :--- | :--- | :--- |
-| **API Gateway** | Node.js + Express | `5478` | Kiểm tra token JWT, giới hạn rate limit, quản lý Auth, Notices, File Uploads. Chuyển tiếp (forward) request tới Microservice C#. |
-| **Core Microservice** | C# ASP.NET Core (.NET 10) | `5000` | Xử lý các nghiệp vụ nặng: Hồ sơ sinh viên, Lớp học, Điểm danh, Điểm số, Học phí. Truy vấn dữ liệu trực tiếp từ SQL Server bằng Dapper. |
-| **Frontend** | React 19 + Vite + Tailwind | `5173` | Giao diện người dùng SPA tập trung, chỉ cần giao tiếp với 1 cổng Gateway duy nhất (5478). |
+| **API Gateway** | Node.js + Express | `5478` | Kiểm tra token JWT, giới hạn rate limit, quản lý Auth, Notices, Assignments, File Uploads, Timetable (Excel Import/Export). Chuyển tiếp (forward) request tới Microservice C#. |
+| **Core Microservice** | C# ASP.NET Core (.NET 10) | `5000` | Xử lý các nghiệp vụ nặng: Hồ sơ sinh viên, Lớp học & Môn học, Điểm danh, Điểm số, Học phí. Truy vấn dữ liệu trực tiếp từ SQL Server bằng Dapper. |
+| **Frontend** | React 19 + Vite + Tailwind | `5173` | Giao diện người dùng SPA tập trung, hỗ trợ bộ lọc thông minh, Nhập/Xuất Excel thời khóa biểu, Quản lý phân công môn dạy cho Giảng viên. |
 
 ---
 

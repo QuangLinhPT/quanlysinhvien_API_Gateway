@@ -1,3 +1,4 @@
+// Tuyến API xử lý đăng nhập, đăng ký và quản lý tài khoản (Auth)
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -8,6 +9,7 @@ const { asyncH } = require('../utils/helpers');
 
 const router = express.Router();
 
+// Hàm tạo JWT Token chứa thông tin cơ bản người dùng
 function makeToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.full_name },
@@ -16,35 +18,36 @@ function makeToken(user) {
   );
 }
 
+// Route Đăng nhập
 router.post('/login',
   body('email').trim().notEmpty(),
   body('password').isLength({ min: 4 }),
   asyncH(async (req, res) => {
     const errs = validationResult(req);
-    if (!errs.isEmpty()) return res.status(400).json({ error: 'Invalid input', details: errs.array() });
+    if (!errs.isEmpty()) return res.status(400).json({ error: 'Dữ liệu đầu vào không hợp lệ', details: errs.array() });
     const { email, password } = req.body;
     const r = await query('SELECT * FROM dbo.users WHERE email=@p1 AND is_active=1', [email.toLowerCase()]);
-    if (!r.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!r.rows.length) return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác' });
     const u = r.rows[0];
     const ok = await bcrypt.compare(password, u.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!ok) return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác' });
     const token = makeToken(u);
     res.json({ token, user: { id: u.id, email: u.email, role: u.role, name: u.full_name } });
   })
 );
 
-// Student self registration
+// Route Học sinh tự đăng ký tài khoản
 router.post('/register',
   body('email').isEmail(),
   body('password').isLength({ min: 6 }),
   body('full_name').isLength({ min: 2 }),
   asyncH(async (req, res) => {
     const errs = validationResult(req);
-    if (!errs.isEmpty()) return res.status(400).json({ error: 'Invalid input', details: errs.array() });
+    if (!errs.isEmpty()) return res.status(400).json({ error: 'Dữ liệu đầu vào không hợp lệ', details: errs.array() });
     const { email, password, full_name, phone, roll_number, dob, gender, address, guardian_name, guardian_phone, guardian_email } = req.body;
 
     const exists = await query('SELECT id FROM dbo.users WHERE email=@p1', [email.toLowerCase()]);
-    if (exists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    if (exists.rows.length) return res.status(409).json({ error: 'Email đã được đăng ký' });
 
     const hash = await bcrypt.hash(password, 10);
     const ur = await query(
@@ -68,9 +71,10 @@ router.post('/register',
   })
 );
 
+// Route lấy thông tin cá nhân hiện tại
 router.get('/me', authRequired, asyncH(async (req, res) => {
   const r = await query('SELECT id, email, role, full_name, phone FROM dbo.users WHERE id=@p1', [req.user.id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'User not found' });
+  if (!r.rows.length) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
   const u = r.rows[0];
   let extra = {};
   if (u.role === 'student') {
@@ -87,18 +91,20 @@ router.get('/me', authRequired, asyncH(async (req, res) => {
   res.json({ user: u, ...extra });
 }));
 
+// Route cập nhật thông tin cá nhân
 router.put('/me', authRequired, asyncH(async (req, res) => {
   const { full_name, phone } = req.body;
   await query('UPDATE dbo.users SET full_name=COALESCE(@p1, full_name), phone=COALESCE(@p2, phone), updated_at=GETDATE() WHERE id=@p3', [full_name, phone, req.user.id]);
   res.json({ ok: true });
 }));
 
+// Route đổi mật khẩu
 router.post('/change-password', authRequired, asyncH(async (req, res) => {
   const { current_password, new_password } = req.body;
-  if (!new_password || new_password.length < 6) return res.status(400).json({ error: 'Password too short' });
+  if (!new_password || new_password.length < 6) return res.status(400).json({ error: 'Mật khẩu mới quá ngắn (tối thiểu 6 ký tự)' });
   const r = await query('SELECT password_hash FROM dbo.users WHERE id=@p1', [req.user.id]);
   const ok = await bcrypt.compare(current_password || '', r.rows[0].password_hash);
-  if (!ok) return res.status(401).json({ error: 'Current password incorrect' });
+  if (!ok) return res.status(401).json({ error: 'Mật khẩu hiện tại không chính xác' });
   const hash = await bcrypt.hash(new_password, 10);
   await query('UPDATE dbo.users SET password_hash=@p1, updated_at=GETDATE() WHERE id=@p2', [hash, req.user.id]);
   res.json({ ok: true });

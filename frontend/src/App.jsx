@@ -1,3 +1,4 @@
+// Định tuyến chính cho giao diện ứng dụng React
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './components/Toast'
@@ -17,6 +18,7 @@ import Assignments from './pages/Assignments'
 import Timetable from './pages/Timetable'
 import Profile from './pages/Profile'
 
+// Component bảo vệ các Route yêu cầu xác thực người dùng
 function Protected({ children }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
@@ -28,9 +30,12 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <Routes>
+          {/* Các trang công khai */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          
+          {/* Các trang nội bộ yêu cầu đăng nhập */}
           <Route path="/app" element={<Protected><Layout /></Protected>}>
             <Route index element={<Dashboard />} />
             <Route path="students" element={<Students />} />
@@ -44,6 +49,8 @@ export default function App() {
             <Route path="timetable" element={<Timetable />} />
             <Route path="profile" element={<Profile />} />
           </Route>
+          
+          {/* Chuyển hướng các đường dẫn không tồn tại về trang chủ */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ToastProvider>

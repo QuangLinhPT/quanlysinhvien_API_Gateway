@@ -29,7 +29,7 @@ export default function Landing() {
               <Sparkles className="w-3.5 h-3.5" /> Dành cho các trường học & trung tâm
             </div>
             <h1 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 leading-[1.05] tracking-tight">
-              Hệ Thống <span className="text-brand-600">Quản Lý Sinh Viên</span> Toàn Diện
+              <span className="text-brand-600">Hệ Thống Quản Lý Sinh Viên Toàn Diện </span>
             </h1>
             <p className="mt-5 text-slate-600 text-lg max-w-xl">Hồ sơ, điểm danh, điểm số, học phí, thời khóa biểu, bài tập và thông báo — tất cả trong một nền tảng an toàn, nhanh chóng và dễ sử dụng.</p>
             <div className="mt-7 flex flex-wrap gap-3">

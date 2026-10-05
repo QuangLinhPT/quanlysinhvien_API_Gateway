@@ -1,9 +1,11 @@
+// Tuyến API quản lý thông báo (Notices)
 const express = require('express');
 const { query } = require('../db/pool');
 const { authRequired, requireRoles } = require('../middleware/auth');
 const { asyncH } = require('../utils/helpers');
 const router = express.Router();
 
+// Route lấy danh sách thông báo phù hợp với đối tượng đăng nhập
 router.get('/', authRequired, asyncH(async (req, res) => {
   const role = req.user.role;
   let where = `WHERE (n.target_role='all' OR n.target_role=@p1)`;
@@ -27,6 +29,7 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   res.json(r.rows);
 }));
 
+// Route tạo thông báo mới (Admin, Teacher, Staff)
 router.post('/', authRequired, requireRoles('admin', 'teacher', 'staff'), asyncH(async (req, res) => {
   const { title, description, priority, target_role, target_class_id } = req.body;
   const r = await query(`INSERT INTO dbo.notices (title, description, priority, target_role, target_class_id, created_by) OUTPUT INSERTED.* VALUES (@p1, @p2, @p3, @p4, @p5, @p6)`,
@@ -34,6 +37,7 @@ router.post('/', authRequired, requireRoles('admin', 'teacher', 'staff'), asyncH
   res.status(201).json(r.rows[0]);
 }));
 
+// Route cập nhật nội dung thông báo
 router.put('/:id', authRequired, requireRoles('admin', 'teacher', 'staff'), asyncH(async (req, res) => {
   const { title, description, priority, target_role, target_class_id } = req.body;
   await query(`UPDATE dbo.notices SET title=COALESCE(@p1, title), description=COALESCE(@p2, description), priority=COALESCE(@p3, priority), target_role=COALESCE(@p4, target_role), target_class_id=@p5 WHERE id=@p6`,
@@ -41,6 +45,7 @@ router.put('/:id', authRequired, requireRoles('admin', 'teacher', 'staff'), asyn
   res.json({ ok: true });
 }));
 
+// Route xóa thông báo
 router.delete('/:id', authRequired, requireRoles('admin', 'teacher', 'staff'), asyncH(async (req, res) => {
   await query('DELETE FROM dbo.notices WHERE id=@p1', [req.params.id]);
   res.json({ ok: true });

@@ -1,3 +1,4 @@
+// Controller API quản lý Học phí và Thanh toán (Fees) (.NET Core Microservice)
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using backend_dotnet.Data;
@@ -15,6 +16,7 @@ public class FeesController : ControllerBase
         _dbFactory = dbFactory;
     }
 
+    // Route lấy thông tin danh sách học phí
     [HttpGet]
     public async Task<IActionResult> GetFees([FromQuery] int? student_id, [FromQuery] string? status)
     {
@@ -55,6 +57,7 @@ public class FeesController : ControllerBase
         return Ok(fees);
     }
 
+    // DTO tạo thông báo khoản thu học phí
     public class CreateFeeDto
     {
         public int Student_Id { get; set; }
@@ -64,13 +67,14 @@ public class FeesController : ControllerBase
         public string? Description { get; set; }
     }
 
+    // Route tạo khoản thu học phí mới (Admin/Staff)
     [HttpPost]
     public async Task<IActionResult> CreateFee([FromBody] CreateFeeDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "staff")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         decimal paid = dto.Paid_Amount ?? 0;
@@ -97,23 +101,25 @@ public class FeesController : ControllerBase
         return StatusCode(201, fee);
     }
 
+    // DTO thanh toán học phí
     public class PayFeeDto
     {
         public decimal Amount { get; set; }
     }
 
+    // Route nộp / thanh toán học phí và xuất hóa đơn
     [HttpPost("{id:int}/pay")]
     public async Task<IActionResult> PayFee(int id, [FromBody] PayFeeDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
         if (user.Role != "admin" && user.Role != "staff")
         {
-            return StatusCode(403, new { error = "Forbidden: insufficient role" });
+            return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
         }
 
         using var conn = _dbFactory.CreateConnection();
         var currentFee = await conn.QueryFirstOrDefaultAsync("SELECT * FROM dbo.fees WHERE id = @id", new { id }) as IDictionary<string, object>;
-        if (currentFee == null) return NotFound(new { error = "Not found" });
+        if (currentFee == null) return NotFound(new { error = "Không tìm thấy thông tin khoản thu" });
 
         decimal currentPaid = Convert.ToDecimal(currentFee["paid_amount"] ?? 0);
         decimal currentTotal = Convert.ToDecimal(currentFee["total_amount"] ?? 0);
@@ -145,11 +151,12 @@ public class FeesController : ControllerBase
         return Ok(updated);
     }
 
+    // Route xóa khoản thu học phí (Admin)
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteFee(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM dbo.fees WHERE id = @id", new { id });

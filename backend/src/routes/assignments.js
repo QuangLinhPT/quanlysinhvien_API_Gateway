@@ -1,3 +1,4 @@
+// Tuyến API quản lý bài tập (Assignments) và bài nộp (Submissions)
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -7,25 +8,33 @@ const { authRequired, requireRoles } = require('../middleware/auth');
 const { asyncH } = require('../utils/helpers');
 const router = express.Router();
 
+// Định nghĩa các loại tệp cho phép và dung lượng tối đa
 const allowedExt = new Set(['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.zip', '.ppt', '.pptx', '.xls', '.xlsx']);
 const maxBytes = (parseInt(process.env.MAX_FILE_SIZE_MB || '10') || 10) * 1024 * 1024;
 
+// Cấu hình lưu trữ file bài tập tạo bởi Giáo viên
 const storageA = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(process.env.UPLOAD_DIR || './uploads', 'assignments')),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
 });
+
+// Cấu hình lưu trữ file bài làm nộp bởi Học sinh
 const storageS = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(process.env.UPLOAD_DIR || './uploads', 'submissions')),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
 });
+
+// Bộ lọc kiểm tra định dạng tệp tải lên
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (!allowedExt.has(ext)) return cb(new Error('File type not allowed'));
+  if (!allowedExt.has(ext)) return cb(new Error('Định dạng tệp không được chấp nhận'));
   cb(null, true);
 };
+
 const uploadA = multer({ storage: storageA, fileFilter, limits: { fileSize: maxBytes } });
 const uploadS = multer({ storage: storageS, fileFilter, limits: { fileSize: maxBytes } });
 
+// Route lấy danh sách bài tập
 router.get('/', authRequired, asyncH(async (req, res) => {
   const conds = [];
   const params = [];
@@ -37,6 +46,10 @@ router.get('/', authRequired, asyncH(async (req, res) => {
     }
   }
   if (req.query.class_id) { params.push(req.query.class_id); conds.push(`a.class_id=@p${params.length}`); }
+  if (req.query.subject_id) { params.push(req.query.subject_id); conds.push(`a.subject_id=@p${params.length}`); }
+  if (req.query.status === 'active') { conds.push(`(a.due_date IS NULL OR a.due_date >= CAST(GETDATE() AS DATE))`); }
+  if (req.query.status === 'expired') { conds.push(`(a.due_date < CAST(GETDATE() AS DATE))`); }
+
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
   const r = await query(`
     SELECT TOP 500 a.*, sub.name AS subject_name, c.name AS class_name, u.full_name AS teacher_name
@@ -49,6 +62,7 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   res.json(r.rows);
 }));
 
+// Route đăng bài tập mới (Admin & Giáo viên) kèm tệp đính kèm
 router.post('/', authRequired, requireRoles('admin', 'teacher'), uploadA.single('file'), asyncH(async (req, res) => {
   const { title, description, subject_id, class_id, section_id, due_date } = req.body;
   const file_path = req.file ? `/uploads/assignments/${req.file.filename}` : null;
@@ -57,6 +71,7 @@ router.post('/', authRequired, requireRoles('admin', 'teacher'), uploadA.single(
   res.status(201).json(r.rows[0]);
 }));
 
+// Route xóa bài tập và tệp liên quan
 router.delete('/:id', authRequired, requireRoles('admin', 'teacher'), asyncH(async (req, res) => {
   const r = await query('SELECT file_path FROM dbo.assignments WHERE id=@p1', [req.params.id]);
   if (r.rows.length && r.rows[0].file_path) {
@@ -67,7 +82,7 @@ router.delete('/:id', authRequired, requireRoles('admin', 'teacher'), asyncH(asy
   res.json({ ok: true });
 }));
 
-// Submissions
+// Route lấy danh sách bài nộp của một bài tập
 router.get('/:id/submissions', authRequired, asyncH(async (req, res) => {
   if (req.user.role === 'student') {
     const s = await query('SELECT id FROM dbo.students WHERE user_id=@p1', [req.user.id]);
@@ -78,9 +93,10 @@ router.get('/:id/submissions', authRequired, asyncH(async (req, res) => {
   res.json(r.rows);
 }));
 
+// Route Học sinh nộp bài làm
 router.post('/:id/submit', authRequired, requireRoles('student'), uploadS.single('file'), asyncH(async (req, res) => {
   const s = await query('SELECT id FROM dbo.students WHERE user_id=@p1', [req.user.id]);
-  if (!s.rows.length) return res.status(400).json({ error: 'Not a student' });
+  if (!s.rows.length) return res.status(400).json({ error: 'Người dùng không phải học sinh' });
   const file_path = req.file ? `/uploads/submissions/${req.file.filename}` : null;
   const { notes } = req.body;
   const r = await query(`MERGE dbo.submissions AS t
@@ -95,6 +111,7 @@ router.post('/:id/submit', authRequired, requireRoles('student'), uploadS.single
   res.status(201).json(r.rows[0]);
 }));
 
+// Route Chấm điểm bài nộp của học sinh
 router.put('/submissions/:id/grade', authRequired, requireRoles('admin', 'teacher'), asyncH(async (req, res) => {
   const { marks, remarks } = req.body;
   await query('UPDATE dbo.submissions SET marks=@p1, remarks=@p2 WHERE id=@p3', [marks, remarks || null, req.params.id]);

@@ -1,9 +1,11 @@
+// Tuyến API tổng hợp thống kê Dashboard cho các vai trò (Admin, Staff, Teacher, Student)
 const express = require('express');
 const { query } = require('../db/pool');
 const { authRequired } = require('../middleware/auth');
 const { asyncH } = require('../utils/helpers');
 const router = express.Router();
 
+// Route lấy số liệu thống kê Dashboard
 router.get('/stats', authRequired, asyncH(async (req, res) => {
   const role = req.user.role;
   if (role === 'admin' || role === 'staff') {
@@ -16,7 +18,7 @@ router.get('/stats', authRequired, asyncH(async (req, res) => {
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.notices'),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.assignments'),
     ]);
-    // Attendance trend last 7 days
+    // Thống kê xu hướng điểm danh trong 7 ngày gần nhất
     const trend = await query(`
       SELECT date,
              CONVERT(int, SUM(CASE WHEN status='present' THEN 1 ELSE 0 END)) AS present,
@@ -51,7 +53,7 @@ router.get('/stats', authRequired, asyncH(async (req, res) => {
       my_notices: notices.rows[0].n,
     });
   } else {
-    // student
+    // Thống kê cá nhân cho Học sinh
     const s = await query('SELECT id FROM dbo.students WHERE user_id=@p1', [req.user.id]);
     if (!s.rows.length) return res.json({});
     const sid = s.rows[0].id;

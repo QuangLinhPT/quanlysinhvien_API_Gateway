@@ -61,6 +61,12 @@ router.delete('/sections/:id', authRequired, requireRoles('admin'), asyncH(async
   res.json({ ok: true });
 }));
 
+router.put('/sections/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
+  const { name } = req.body;
+  await query('UPDATE dbo.sections SET name=@p1 WHERE id=@p2', [name, req.params.id]);
+  res.json({ ok: true });
+}));
+
 router.get('/:id/subjects', authRequired, asyncH(async (req, res) => {
   const r = await query('SELECT * FROM dbo.subjects WHERE class_id=@p1 ORDER BY name', [req.params.id]);
   res.json(r.rows);
@@ -74,6 +80,12 @@ router.post('/:id/subjects', authRequired, requireRoles('admin'), asyncH(async (
 
 router.delete('/subjects/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
   await query('DELETE FROM dbo.subjects WHERE id=@p1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+router.put('/subjects/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
+  const { name, code } = req.body;
+  await query('UPDATE dbo.subjects SET name=@p1, code=COALESCE(@p2, code) WHERE id=@p3', [name, code || null, req.params.id]);
   res.json({ ok: true });
 }));
 

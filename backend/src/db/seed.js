@@ -83,7 +83,7 @@ async function studentExists(userId) {
       ['giaovien2@qlsv.edu.vn', 'Lê Hoàng Nam', 'GV002', 'Kỹ sư CNTT', 'Lập Trình Web', 18000000, '0902000002'],
       ['giaovien3@qlsv.edu.vn', 'Nguyễn Thị Hải Yến', 'GV003', 'Tiến sĩ Khoa học Máy tính', 'Cơ Sở Dữ Liệu', 22000000, '0902000003'],
       ['giaovien4@qlsv.edu.vn', 'Phạm Quốc Bảo', 'GV004', 'Thạc sĩ Mạng máy tính', 'Mạng Máy Tính', 17000000, '0902000004'],
-      ['giaovien5@qlsv.edu.vn', 'Đỗ Thùy Trang', 'GV005', 'Thạc sĩ Ngôn ngữ Anh', 'Tiếng Anh Chuyên Nành', 16000000, '0902000005'],
+      ['giaovien5@qlsv.edu.vn', 'Đỗ Thùy Trang', 'GV005', 'Thạc sĩ Ngôn ngữ Anh', 'Tiếng Anh Chuyên Ngành', 16000000, '0902000005'],
       ['giaovien6@qlsv.edu.vn', 'Vũ Đình Trọng', 'GV006', 'Kỹ sư An toàn thông tin', 'An Nhanh Hệ Thống', 19000000, '0902000006'],
       ['giaovien7@qlsv.edu.vn', 'Bùi Tuyết Mai', 'GV007', 'Thạc sĩ Kế toán', 'Kế Toán Đại Đại', 15000000, '0902000007'],
       ['giaovien8@qlsv.edu.vn', 'Hoàng Văn Huy', 'GV008', 'Kỹ sư Phần mềm', 'Kiểm Thử Phần Mềm', 17500000, '0902000008'],
@@ -121,10 +121,10 @@ async function studentExists(userId) {
 
     // 4. Môn học theo từng Lớp
     const subjectsMap = {
-      'CNTT K16': ['Toán Cao Cấp', 'Lập Trình Web', 'Cơ Sở Dữ Liệu', 'Mạng Máy Tính', 'Tiếng Anh Chuyên Nành'],
-      'CNTT K15': ['Kiểm Thử Phần Mềm', 'An Ninh Hệ Thống', 'Học Máy & AI', 'Tiếng Anh Chuyên Nành'],
-      'Kế Toán K16': ['Kế Toán Đại Đại', 'Toán Cao Cấp', 'Quản Trị Học', 'Tiếng Anh Chuyên Nành'],
-      'Quản Trị K16': ['Quản Trị Học', 'Kế Toán Đại Đại', 'Tiếng Anh Chuyên Nành'],
+      'CNTT K16': ['Toán Cao Cấp', 'Lập Trình Web', 'Cơ Sở Dữ Liệu', 'Mạng Máy Tính', 'Tiếng Anh Chuyên Ngành'],
+      'CNTT K15': ['Kiểm Thử Phần Mềm', 'An Ninh Hệ Thống', 'Học Máy & AI', 'Tiếng Anh Chuyên Ngành'],
+      'Kế Toán K16': ['Kế Toán Đại Đại', 'Toán Cao Cấp', 'Quản Trị Học', 'Tiếng Anh Chuyên Ngành'],
+      'Quản Trị K16': ['Quản Trị Học', 'Kế Toán Đại Đại', 'Tiếng Anh Chuyên Ngành'],
       'An Toàn Thông Tin K16': ['An Ninh Hệ Thống', 'Mạng Máy Tính', 'Cơ Sở Dữ Liệu', 'Toán Cao Cấp'],
       'Khoa Học Dữ Liệu K16': ['Học Máy & AI', 'Cơ Sở Dữ Liệu', 'Toán Cao Cấp', 'Lập Trình Web'],
     };
@@ -132,9 +132,21 @@ async function studentExists(userId) {
     const subjectIds = {};
     for (const c of classes) {
       subjectIds[c] = {};
-      const subs = subjectsMap[c] || ['Toán Cao Cấp', 'Tiếng Anh Chuyên Nành'];
+      const subs = subjectsMap[c] || ['Toán Cao Cấp', 'Tiếng Anh Chuyên Ngành'];
       for (const sub of subs) {
-        subjectIds[c][sub] = await getOrCreateSubjectId(sub, classIds[c]);
+        const subId = await getOrCreateSubjectId(sub, classIds[c]);
+        if (!subjectIds[c]) subjectIds[c] = {};
+        subjectIds[c][sub] = subId;
+
+        // Phân công môn học này cho giảng viên tương ứng
+        const tUid = teacherUids[Object.keys(subjectIds[c]).length % teacherUids.length];
+        await query(
+          `IF NOT EXISTS (SELECT 1 FROM dbo.teacher_subjects WHERE teacher_id=@p1 AND subject_id=@p2)
+           BEGIN
+             INSERT INTO dbo.teacher_subjects (teacher_id, subject_id) VALUES (@p1, @p2);
+           END`,
+          [tUid, subId]
+        );
       }
     }
 
@@ -374,14 +386,14 @@ async function studentExists(userId) {
       const dueDateStr = new Date(Date.now() + item.dueDays * 86400000).toISOString().slice(0, 10);
 
       const assignRes = await query(
-        `IF NOT EXISTS (SELECT 1 FROM dbo.assignments WHERE title=@p1 AND class_id=@p2)
+        `IF NOT EXISTS (SELECT 1 FROM dbo.assignments WHERE title=@p1 AND class_id=@p4)
          BEGIN
            INSERT INTO dbo.assignments (title, description, subject_id, class_id, teacher_id, due_date)
            OUTPUT INSERTED.id
            VALUES (@p1, @p2, @p3, @p4, @p5, CAST(@p6 AS date));
          END
          ELSE
-           SELECT id FROM dbo.assignments WHERE title=@p1 AND class_id=@p2`,
+           SELECT id FROM dbo.assignments WHERE title=@p1 AND class_id=@p4`,
         [item.title, item.desc, sId, cId, tUid, dueDateStr]
       );
 

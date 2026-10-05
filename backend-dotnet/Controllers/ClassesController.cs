@@ -1,3 +1,4 @@
+// Controller API quản lý Lớp học, Phân đoạn (Sections) và Môn học (Subjects)
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using System.Text.Json;
@@ -16,6 +17,7 @@ public class ClassesController : ControllerBase
         _dbFactory = dbFactory;
     }
 
+    // Route lấy danh sách tất cả các lớp kèm số lượng học sinh và các phân đoạn (sections)
     [HttpGet]
     public async Task<IActionResult> GetClasses()
     {
@@ -42,7 +44,6 @@ public class ClassesController : ControllerBase
             var secList = sectionsByClass.ContainsKey(cid) ? sectionsByClass[cid] : new List<object>();
             var dict = new Dictionary<string, object?>();
             
-            // Map dynamic record properties
             var row = (IDictionary<string, object>)cls;
             foreach (var kvp in row)
             {
@@ -50,13 +51,14 @@ public class ClassesController : ControllerBase
             }
 
             dict["student_count"] = Convert.ToInt32(cls.student_count ?? 0);
-            dict["sections"] = JsonSerializer.Serialize(secList);
+            dict["sections"] = secList;
             return dict;
         });
 
         return Ok(result);
     }
 
+    // DTO đầu vào tạo mới lớp học
     public class CreateClassDto
     {
         public string Name { get; set; } = string.Empty;
@@ -64,15 +66,16 @@ public class ClassesController : ControllerBase
         public int? Class_Teacher_Id { get; set; }
     }
 
+    // Route tạo lớp học mới (Admin)
     [HttpPost]
     public async Task<IActionResult> CreateClass([FromBody] CreateClassDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         if (string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(dto.Academic_Year))
         {
-            return BadRequest(new { error = "Name and academic year required" });
+            return BadRequest(new { error = "Tên lớp và năm học là bắt buộc" });
         }
 
         using var conn = _dbFactory.CreateConnection();
@@ -91,11 +94,12 @@ public class ClassesController : ControllerBase
         return StatusCode(201, newClass);
     }
 
+    // Route cập nhật thông tin lớp học (Admin)
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateClass(int id, [FromBody] CreateClassDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         var sql = @"
@@ -116,27 +120,30 @@ public class ClassesController : ControllerBase
         return Ok(new { ok = true });
     }
 
+    // Route xóa lớp học (Admin)
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteClass(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM dbo.classes WHERE id = @id", new { id });
         return Ok(new { ok = true });
     }
 
+    // DTO cho phân đoạn (section)
     public class SectionDto
     {
         public string Name { get; set; } = string.Empty;
     }
 
+    // Route thêm phân đoạn cho lớp học
     [HttpPost("{id:int}/sections")]
     public async Task<IActionResult> CreateSection(int id, [FromBody] SectionDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         var sql = "INSERT INTO dbo.sections (class_id, name) OUTPUT INSERTED.* VALUES (@class_id, @name)";
@@ -145,17 +152,31 @@ public class ClassesController : ControllerBase
         return StatusCode(201, sec);
     }
 
+    // Route xóa phân đoạn
     [HttpDelete("sections/{id:int}")]
     public async Task<IActionResult> DeleteSection(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM dbo.sections WHERE id = @id", new { id });
         return Ok(new { ok = true });
     }
 
+    // Route cập nhật tên phân đoạn
+    [HttpPut("sections/{id:int}")]
+    public async Task<IActionResult> UpdateSection(int id, [FromBody] SectionDto dto)
+    {
+        var user = UserContext.FromHttpContext(HttpContext);
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
+
+        using var conn = _dbFactory.CreateConnection();
+        await conn.ExecuteAsync("UPDATE dbo.sections SET name = @name WHERE id = @id", new { name = dto.Name, id });
+        return Ok(new { ok = true });
+    }
+
+    // Route lấy danh sách môn học của lớp
     [HttpGet("{id:int}/subjects")]
     public async Task<IActionResult> GetSubjects(int id)
     {
@@ -164,17 +185,19 @@ public class ClassesController : ControllerBase
         return Ok(subjects);
     }
 
+    // DTO môn học
     public class SubjectDto
     {
         public string Name { get; set; } = string.Empty;
         public string? Code { get; set; }
     }
 
+    // Route thêm môn học cho lớp
     [HttpPost("{id:int}/subjects")]
     public async Task<IActionResult> CreateSubject(int id, [FromBody] SubjectDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         var sql = "INSERT INTO dbo.subjects (name, code, class_id) OUTPUT INSERTED.* VALUES (@name, @code, @class_id)";
@@ -183,11 +206,24 @@ public class ClassesController : ControllerBase
         return StatusCode(201, subject);
     }
 
+    // Route cập nhật thông tin môn học
+    [HttpPut("subjects/{id:int}")]
+    public async Task<IActionResult> UpdateSubject(int id, [FromBody] SubjectDto dto)
+    {
+        var user = UserContext.FromHttpContext(HttpContext);
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
+
+        using var conn = _dbFactory.CreateConnection();
+        await conn.ExecuteAsync("UPDATE dbo.subjects SET name = @name, code = COALESCE(@code, code) WHERE id = @id", new { name = dto.Name, code = dto.Code, id });
+        return Ok(new { ok = true });
+    }
+
+    // Route xóa môn học
     [HttpDelete("subjects/{id:int}")]
     public async Task<IActionResult> DeleteSubject(int id)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Forbidden: insufficient role" });
+        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM dbo.subjects WHERE id = @id", new { id });

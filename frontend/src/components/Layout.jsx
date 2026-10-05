@@ -6,14 +6,14 @@ import { LayoutDashboard, Users, GraduationCap, Calendar, ClipboardCheck, Award,
 const NAV = [
   { to: '/app', label: 'Bảng Điều Khiển', icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'student'] },
   { to: '/app/students', label: 'Quản Lý Sinh Viên', icon: GraduationCap, roles: ['admin', 'teacher', 'staff'] },
-  { to: '/app/users', label: 'Giảng Viên & Nhân Viên', icon: Users, roles: ['admin'] },
+  { to: '/app/users', label: 'Giảng Viên & Nhân Viên', icon: Users, roles: ['admin', 'staff'] },
   { to: '/app/classes', label: 'Lớp Học & Phân Lớp', icon: School, roles: ['admin', 'teacher', 'staff'] },
   { to: '/app/attendance', label: 'Điểm Danh', icon: ClipboardCheck, roles: ['admin', 'teacher', 'staff', 'student'] },
-  { to: '/app/exams', label: 'Kỳ Thi & Điểm Số', icon: Award, roles: ['admin', 'teacher', 'student'] },
+  { to: '/app/exams', label: 'Kỳ Thi & Điểm Số', icon: Award, roles: ['admin', 'teacher', 'staff', 'student'] },
   { to: '/app/fees', label: 'Học Phí', icon: Wallet, roles: ['admin', 'staff', 'student'] },
   { to: '/app/notices', label: 'Bảng Thông Báo', icon: Megaphone, roles: ['admin', 'teacher', 'staff', 'student'] },
   { to: '/app/assignments', label: 'Bài Tập', icon: FileText, roles: ['admin', 'teacher', 'student'] },
-  { to: '/app/timetable', label: 'Thời Khóa Biểu', icon: Calendar, roles: ['admin', 'teacher', 'student'] },
+  { to: '/app/timetable', label: 'Thời Khóa Biểu', icon: Calendar, roles: ['admin', 'teacher', 'staff', 'student'] },
   { to: '/app/profile', label: 'Hồ Sơ Cá Nhân', icon: ClipboardList, roles: ['admin', 'teacher', 'staff', 'student'] },
 ]
 

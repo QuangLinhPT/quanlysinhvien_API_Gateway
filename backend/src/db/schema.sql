@@ -71,12 +71,23 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'dbo.departments', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.departments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code NVARCHAR(20) NOT NULL CONSTRAINT uq_departments_code UNIQUE,
+    name NVARCHAR(150) NOT NULL
+  );
+END
+GO
+
 IF OBJECT_ID(N'dbo.teachers', N'U') IS NULL
 BEGIN
   CREATE TABLE dbo.teachers (
     id INT IDENTITY(1,1) PRIMARY KEY,
     user_id INT NOT NULL CONSTRAINT fk_teachers_user REFERENCES dbo.users(id) ON DELETE CASCADE,
     employee_id NVARCHAR(50) NOT NULL CONSTRAINT uq_teachers_employee UNIQUE,
+    department_id INT NULL CONSTRAINT fk_teachers_department REFERENCES dbo.departments(id) ON DELETE SET NULL,
     qualification NVARCHAR(150) NULL,
     specialization NVARCHAR(150) NULL,
     joining_date DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
@@ -205,12 +216,23 @@ BEGIN
     class_id INT NOT NULL CONSTRAINT fk_tt_class REFERENCES dbo.classes(id) ON DELETE CASCADE,
     section_id INT NULL CONSTRAINT fk_tt_section REFERENCES dbo.sections(id) ON DELETE NO ACTION,
     day_of_week NVARCHAR(10) NOT NULL,
+    date DATE NULL,
     period INT NOT NULL,
     subject_id INT NULL CONSTRAINT fk_tt_subject REFERENCES dbo.subjects(id) ON DELETE NO ACTION,
     teacher_id INT NULL CONSTRAINT fk_tt_teacher REFERENCES dbo.users(id) ON DELETE NO ACTION,
     start_time TIME NULL,
     end_time TIME NULL,
     room NVARCHAR(50) NULL
+  );
+END
+GO
+
+IF OBJECT_ID(N'dbo.teacher_subjects', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.teacher_subjects (
+    teacher_id INT NOT NULL CONSTRAINT fk_ts_teacher REFERENCES dbo.users(id) ON DELETE CASCADE,
+    subject_id INT NOT NULL CONSTRAINT fk_ts_subject REFERENCES dbo.subjects(id) ON DELETE CASCADE,
+    CONSTRAINT pk_teacher_subjects PRIMARY KEY (teacher_id, subject_id)
   );
 END
 GO
@@ -229,4 +251,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_marks_student' AND ob
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_fees_student' AND object_id = OBJECT_ID(N'dbo.fees'))
   CREATE INDEX idx_fees_student ON dbo.fees(student_id);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_users_role' AND object_id = OBJECT_ID(N'dbo.users'))
+  CREATE INDEX idx_users_role ON dbo.users(role, is_active);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_teachers_user' AND object_id = OBJECT_ID(N'dbo.teachers'))
+  CREATE INDEX idx_teachers_user ON dbo.teachers(user_id);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_teachers_dept' AND object_id = OBJECT_ID(N'dbo.teachers'))
+  CREATE INDEX idx_teachers_dept ON dbo.teachers(department_id);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_teacher_subjects' AND object_id = OBJECT_ID(N'dbo.teacher_subjects'))
+  CREATE INDEX idx_teacher_subjects ON dbo.teacher_subjects(teacher_id, subject_id);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_timetable_class' AND object_id = OBJECT_ID(N'dbo.timetable'))
+  CREATE INDEX idx_timetable_class ON dbo.timetable(class_id, day_of_week);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_timetable_teacher' AND object_id = OBJECT_ID(N'dbo.timetable'))
+  CREATE INDEX idx_timetable_teacher ON dbo.timetable(teacher_id);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_subjects_class' AND object_id = OBJECT_ID(N'dbo.subjects'))
+  CREATE INDEX idx_subjects_class ON dbo.subjects(class_id);
 GO

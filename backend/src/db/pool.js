@@ -8,10 +8,10 @@ function buildConfig() {
   }
   const rawHost = process.env.DB_HOST || '127.0.0.1';
   const server = rawHost.split('\\')[0] || '127.0.0.1';
-  const instanceName = process.env.DB_INSTANCE || (rawHost.includes('\\') ? rawHost.split('\\')[1] : null);
 
   const cfg = {
     server: server,
+    port: parseInt(process.env.DB_PORT || '1433', 10),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
@@ -25,12 +25,6 @@ function buildConfig() {
       idleTimeoutMillis: 30000,
     },
   };
-
-  if (instanceName) {
-    cfg.options.instanceName = instanceName;
-  } else {
-    cfg.port = parseInt(process.env.DB_PORT || '1433', 10);
-  }
   return cfg;
 }
 

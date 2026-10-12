@@ -6,6 +6,36 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Fi
 
 const DAYS = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
 
+// Định nghĩa bảng khung giờ chuẩn 12 tiết học đại học
+const PERIODS_DATA = [
+  { id: 1, label: 'Tiết 1', session: 'Sáng', start: '07:00', end: '07:45' },
+  { id: 2, label: 'Tiết 2', session: 'Sáng', start: '07:50', end: '08:35' },
+  { id: 3, label: 'Tiết 3', session: 'Sáng', start: '08:40', end: '09:25' },
+  { id: 4, label: 'Tiết 4', session: 'Sáng', start: '09:35', end: '10:20' },
+  { id: 5, label: 'Tiết 5', session: 'Sáng', start: '10:25', end: '11:10' },
+  { id: 6, label: 'Tiết 6', session: 'Sáng', start: '11:15', end: '12:00' },
+  { id: 7, label: 'Tiết 7', session: 'Chiều', start: '13:00', end: '13:45' },
+  { id: 8, label: 'Tiết 8', session: 'Chiều', start: '13:50', end: '14:35' },
+  { id: 9, label: 'Tiết 9', session: 'Chiều', start: '14:40', end: '15:25' },
+  { id: 10, label: 'Tiết 10', session: 'Chiều', start: '15:35', end: '16:20' },
+  { id: 11, label: 'Tiết 11', session: 'Chiều', start: '16:25', end: '17:10' },
+  { id: 12, label: 'Tiết 12', session: 'Chiều', start: '17:15', end: '18:00' },
+]
+
+function getPeriodRangeInfo(startP, endP) {
+  const s = parseInt(startP, 10) || 1
+  const e = parseInt(endP, 10) || s
+  const startObj = PERIODS_DATA.find(p => p.id === s) || PERIODS_DATA[0]
+  const endObj = PERIODS_DATA.find(p => p.id === e) || startObj
+  const isSingle = s === e
+  return {
+    label: isSingle ? `Tiết ${s}` : `Tiết ${s} - ${e}`,
+    timeStr: `${startObj.start} - ${endObj.end}`,
+    fullDisplay: isSingle ? `Tiết ${s} (${startObj.start} - ${endObj.end})` : `Tiết ${s}-${e} (${startObj.start} - ${endObj.end})`,
+    session: startObj.session
+  }
+}
+
 export default function Timetable() {
   const { user } = useAuth()
   const toast = useToast()
@@ -295,7 +325,9 @@ export default function Timetable() {
                           <div className="pt-1 border-t border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-brand-600 shrink-0" />
-                              <span>{item.period === '1-3' ? 'Sáng (Tiết 1-3)' : 'Chiều (Tiết 7-9)'}</span>
+                              <span className="font-medium text-slate-800">
+                                {item.period_display || (item.start_time ? `Tiết ${item.period} (${item.start_time} - ${item.end_time})` : `Tiết ${item.period}`)}
+                              </span>
                             </div>
                             <div className="font-semibold text-brand-800">📍 {item.room}</div>
                             {item.specific_date && (
@@ -357,7 +389,9 @@ export default function Timetable() {
                         <div className="pt-1 border-t border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
                           <div className="flex items-center gap-1">
                             <Clock className="w-3 h-3 text-brand-600 shrink-0" />
-                            <span>{item.period === '1-3' ? 'Sáng (Tiết 1-3)' : 'Chiều (Tiết 7-9)'}</span>
+                            <span className="font-medium text-slate-800">
+                              {item.period_display || (item.start_time ? `Tiết ${item.period} (${item.start_time} - ${item.end_time})` : `Tiết ${item.period}`)}
+                            </span>
                           </div>
                           <div className="font-semibold text-brand-800">📍 {item.room}</div>
                           {item.specific_date && (
@@ -403,13 +437,17 @@ export default function Timetable() {
 function CreateScheduleModal({ sections, currentSemesterId, onClose, onSuccess }) {
   const toast = useToast()
   const [submitting, setSubmitting] = useState(false)
+  const [startPeriod, setStartPeriod] = useState(1)
+  const [endPeriod, setEndPeriod] = useState(2)
   const [form, setForm] = useState({
     course_section_id: '',
     specific_date: '',
     day_of_week: 'Thứ Hai',
-    period: '1-3',
     room: 'Phòng A201'
   })
+
+  // Tính thông tin thời gian theo cặp tiết đã chọn
+  const rangeInfo = getPeriodRangeInfo(startPeriod, endPeriod)
 
   // Lọc các LHP thuộc học kỳ đang chọn (nếu có)
   const filteredSections = sections.filter(s => !currentSemesterId || String(s.semester_id) === String(currentSemesterId))
@@ -437,6 +475,15 @@ function CreateScheduleModal({ sections, currentSemesterId, onClose, onSuccess }
     setForm({ ...form, specific_date: val, day_of_week: calculatedDay })
   }
 
+  // Khi thay đổi Tiết bắt đầu -> Tự động điều chỉnh Tiết kết thúc nếu cần
+  function handleStartPeriodChange(e) {
+    const sp = parseInt(e.target.value, 10)
+    setStartPeriod(sp)
+    if (endPeriod < sp) {
+      setEndPeriod(sp)
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.course_section_id) {
@@ -445,7 +492,13 @@ function CreateScheduleModal({ sections, currentSemesterId, onClose, onSuccess }
     }
     setSubmitting(true)
     try {
-      const res = await api.post('/timetable/schedule', form)
+      const payload = {
+        ...form,
+        start_period: startPeriod,
+        end_period: endPeriod,
+        period: startPeriod === endPeriod ? `${startPeriod}` : `${startPeriod}-${endPeriod}`
+      }
+      const res = await api.post('/timetable/schedule', payload)
       toast.success(res.data?.message || 'Tạo lịch học thành công!')
       onSuccess()
     } catch (err) {
@@ -464,7 +517,7 @@ function CreateScheduleModal({ sections, currentSemesterId, onClose, onSuccess }
               <CalendarIcon className="w-5 h-5 text-emerald-600" />
               Thêm Lịch Học Trực Tiếp
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Xếp lịch học, phòng học và ca học cho Lớp học phần</p>
+            <p className="text-xs text-slate-500 mt-0.5">Xếp lịch học, phòng học và tiết học linh hoạt (tiết đơn hoặc gộp tiết)</p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <X className="w-5 h-5" />
@@ -520,37 +573,68 @@ function CreateScheduleModal({ sections, currentSemesterId, onClose, onSuccess }
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Ca / Tiết Học (*)
-              </label>
-              <select
-                required
-                className="input text-sm font-medium w-full"
-                value={form.period}
-                onChange={e => setForm({ ...form, period: e.target.value })}
-              >
-                <option value="1-3">Sáng: Tiết 1 - 3 (07:00 - 09:30)</option>
-                <option value="4-6">Sáng: Tiết 4 - 6 (09:45 - 12:15)</option>
-                <option value="7-9">Chiều: Tiết 7 - 9 (13:00 - 15:30)</option>
-                <option value="10-12">Chiều: Tiết 10 - 12 (15:45 - 18:15)</option>
-              </select>
+          {/* CHỌN TIẾT HỌC LINH HOẠT: TỪ TIẾT - ĐẾN TIẾT */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Khung Tiết Học (*)
+            </label>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-[11px] font-semibold text-slate-500 block mb-1">Từ Tiết:</span>
+                <select
+                  className="input text-xs font-bold w-full"
+                  value={startPeriod}
+                  onChange={handleStartPeriodChange}
+                >
+                  {PERIODS_DATA.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} ({p.start} - {p.end}) [{p.session}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-semibold text-slate-500 block mb-1">Đến Tiết:</span>
+                <select
+                  className="input text-xs font-bold w-full"
+                  value={endPeriod}
+                  onChange={e => setEndPeriod(parseInt(e.target.value, 10))}
+                >
+                  {PERIODS_DATA.filter(p => p.id >= startPeriod).map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} ({p.start} - {p.end}) [{p.session}]
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Phòng Học (*)
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: Phòng A201, Lab CNTT..."
-                className="input text-sm font-medium w-full"
-                value={form.room}
-                onChange={e => setForm({ ...form, room: e.target.value })}
-              />
+            {/* LIVE PREVIEW THỜI GIAN THỰC TẾ ĐƯỢC GỘP */}
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs">
+              <span className="font-semibold text-emerald-800 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                Thời Gian Thực Tế:
+              </span>
+              <span className="font-extrabold text-emerald-900 bg-white px-2 py-0.5 rounded shadow-sm border border-emerald-200">
+                {rangeInfo.fullDisplay}
+              </span>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Phòng Học (*)
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="VD: Phòng A201, Lab CNTT..."
+              className="input text-sm font-medium w-full"
+              value={form.room}
+              onChange={e => setForm({ ...form, room: e.target.value })}
+            />
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">

@@ -93,7 +93,43 @@ router.post('/import-grades', authRequired, requireRoles('teacher', 'staff', 'ad
   } catch (err) { next(err); }
 });
 
-// --- TẢI FILE EXCEL MẪU THỜI KHÓA BIỂU CÓ TRƯỜNG NGÀY HỌC ---
+// Bảng khung giờ chuẩn 12 tiết học đại học (45 phút / tiết)
+const PERIOD_TIME_MAP = {
+  1:  { start: '07:00', end: '07:45' },
+  2:  { start: '07:50', end: '08:35' },
+  3:  { start: '08:40', end: '09:25' },
+  4:  { start: '09:35', end: '10:20' },
+  5:  { start: '10:25', end: '11:10' },
+  6:  { start: '11:15', end: '12:00' },
+  7:  { start: '13:00', end: '13:45' },
+  8:  { start: '13:50', end: '14:35' },
+  9:  { start: '14:40', end: '15:25' },
+  10: { start: '15:35', end: '16:20' },
+  11: { start: '16:25', end: '17:10' },
+  12: { start: '17:15', end: '18:00' },
+};
+
+function formatPeriodDisplay(periodInput) {
+  if (!periodInput) return 'Tiết 1-2 (07:00 - 08:35)';
+  const m = String(periodInput).match(/(\d+)(?:\s*-\s*(\d+))?/);
+  if (!m) return `Tiết ${periodInput}`;
+
+  const startP = parseInt(m[1], 10);
+  const endP = m[2] ? parseInt(m[2], 10) : startP;
+
+  const validStart = Math.max(1, Math.min(12, startP));
+  const validEnd = Math.max(validStart, Math.min(12, endP));
+
+  const startObj = PERIOD_TIME_MAP[validStart] || { start: '07:00', end: '07:45' };
+  const endObj = PERIOD_TIME_MAP[validEnd] || { start: '07:50', end: '08:35' };
+
+  if (validStart === validEnd) {
+    return `Tiết ${validStart} (${startObj.start} - ${startObj.end})`;
+  }
+  return `Tiết ${validStart}-${validEnd} (${startObj.start} - ${endObj.end})`;
+}
+
+// --- TẢI FILE EXCEL MẪU THỜI KHÓA BIỂU CÓ TRƯỜNG NGÀY HỌC & TIẾT HỌC LINH HOẠT ---
 router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', 'teacher'), async (req, res, next) => {
   try {
     const sampleData = [
@@ -104,7 +140,7 @@ router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', '
         'Tên Môn Học': 'Lập Trình Cơ Bản',
         'Ngày Học (DD/MM/YYYY)': '12/10/2026',
         'Thứ': 'Thứ Hai',
-        'Tiết Học': '1-3',
+        'Tiết Học (vd: 1 hoặc 1-2, 7-9)': '1-2',
         'Phòng Học': 'Phòng A201',
         'Tên Giảng Viên': 'Nguyễn Văn A'
       },
@@ -115,7 +151,7 @@ router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', '
         'Tên Môn Học': 'Cấu Trúc Dữ Liệu',
         'Ngày Học (DD/MM/YYYY)': '14/10/2026',
         'Thứ': 'Thứ Tư',
-        'Tiết Học': '7-9',
+        'Tiết Học (vd: 1 hoặc 1-2, 7-9)': '1',
         'Phòng Học': 'Phòng B102',
         'Tên Giảng Viên': 'Trần Thị B'
       },
@@ -126,7 +162,7 @@ router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', '
         'Tên Môn Học': 'Cơ Sở Dữ Liệu',
         'Ngày Học (DD/MM/YYYY)': '16/10/2026',
         'Thứ': 'Thứ Sáu',
-        'Tiết Học': '1-3',
+        'Tiết Học (vd: 1 hoặc 1-2, 7-9)': '7-9',
         'Phòng Học': 'Phòng C301',
         'Tên Giảng Viên': 'Lê Văn C'
       }
@@ -194,7 +230,7 @@ router.post('/import-timetable', authRequired, requireRoles('admin', 'staff', 't
       const sectionCode = row['Mã LHP'] || row['section_code'];
       const rawDate = row['Ngày Học (DD/MM/YYYY)'] || row['Ngày Học'] || row['date'] || row['start_date'];
       let dayStr = row['Thứ'] || row['day_of_week'];
-      const periodStr = row['Tiết Học'] || row['period'] || row['schedule'];
+      const periodRaw = row['Tiết Học (vd: 1 hoặc 1-2, 7-9)'] || row['Tiết Học'] || row['period'] || row['schedule'];
       const roomStr = row['Phòng Học'] || row['room'];
 
       if (!sectionCode) {
@@ -224,7 +260,8 @@ router.post('/import-timetable', authRequired, requireRoles('admin', 'staff', 't
       }
 
       const sectionId = csRes.rows[0].id;
-      const schedule = `${dayStr || 'Thứ Hai'} (Tiết ${periodStr || '1-3'})${dateFormatted}`;
+      const formattedPeriodText = formatPeriodDisplay(periodRaw);
+      const schedule = `${dayStr || 'Thứ Hai'} (${formattedPeriodText})${dateFormatted}`;
 
       await query('UPDATE dbo.course_sections SET room=@p1, schedule=@p2 WHERE id=@p3', [
         roomStr || 'Phòng A201',

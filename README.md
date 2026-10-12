@@ -71,9 +71,9 @@ Hệ thống phân định rạch ròi giữa các vai trò nhằm đảm bảo 
  ├── Security Data Scope Middlewares (Teacher Section Scope & Student Scope IDOR Check)
  ├── Express Router Nghiệp vụ Học vụ & Tín chỉ:
  │    ├── /api/academic  -> Quản lý Khoa, Ngành, CTTĐ, Lớp Hành Chính, Học phần, Lớp HP, Đăng ký môn
- │    ├── /api/grades    -> Nhập điểm, Workflow (Draft->Locked), Tính điểm liệt, GPA, Phúc khảo
- │    ├── /api/excel     -> Import Điểm Excel & Mẫu Thời Khóa Biểu (kèm Ngày Học DD/MM/YYYY)
- │    ├── /api/timetable -> Xem Lịch theo Tuần/Kỳ, Tạo lịch học trực tiếp (POST /schedule)
+ │    ├── /api/grades    -> Nhập điểm, Workflow (Draft->Locked), Tính điểm liệt, GPA, Thống kê điểm môn theo lớp
+ │    ├── /api/excel     -> Import Điểm Excel & Mẫu Thời Khóa Biểu (kèm Ngày Học & Tiết học đơn/gộp 12 tiết)
+ │    ├── /api/timetable -> Xem Lịch theo Tuần/Kỳ, Tạo lịch học trực tiếp (POST /schedule với tiết 1..12 tự động gộp giờ)
  │    └── /api/assignments, /api/notices, /api/dashboard
  └── Forward Proxy (Chuyển tiếp tới C# .NET Microservice với HTTP Keep-Alive & Auto Fallback)
          │

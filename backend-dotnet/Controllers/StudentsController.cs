@@ -29,32 +29,6 @@ public class StudentsController : ControllerBase
 
         using var conn = _dbFactory.CreateConnection();
 
-        // Nếu là Giảng viên, kiểm tra quyền truy cập theo lớp hành chính phụ trách
-        if (user.Role == "teacher")
-        {
-            var teacherClassesSql = @"
-                SELECT DISTINCT ac.id
-                FROM dbo.administrative_classes ac
-                WHERE ac.advisor_teacher_id = @teacher_id";
-
-            var allowedClassIds = (await conn.QueryAsync<int>(teacherClassesSql, new { teacher_id = user.UserId })).ToList();
-
-            if (class_id.HasValue)
-            {
-                if (!allowedClassIds.Contains(class_id.Value))
-                {
-                    return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách lớp hành chính này" });
-                }
-            }
-            else
-            {
-                if (allowedClassIds.Count == 0)
-                {
-                    return Ok(Array.Empty<object>());
-                }
-            }
-        }
-
         var sql = @"
             SELECT TOP 1000 s.id, s.user_id, s.student_code AS roll_number, s.student_code,
                    s.administrative_class_id AS class_id, s.date_of_birth AS dob, s.gender, s.address,
@@ -66,6 +40,42 @@ public class StudentsController : ControllerBase
             WHERE 1=1";
 
         var parameters = new DynamicParameters();
+
+        // Nếu là Giảng viên, kiểm tra quyền truy cập theo: Lớp cố vấn + Lớp có sinh viên học môn do GV dạy
+        if (user.Role == "teacher")
+        {
+            var teacherClassesSql = @"
+                SELECT DISTINCT ac.id
+                FROM dbo.administrative_classes ac
+                WHERE ac.advisor_teacher_id = @teacher_id
+                UNION
+                SELECT DISTINCT s.administrative_class_id
+                FROM dbo.teacher_assignments ta
+                JOIN dbo.teachers t ON t.id = ta.teacher_id
+                JOIN dbo.enrollments e ON e.course_section_id = ta.course_section_id
+                JOIN dbo.students s ON s.id = e.student_id
+                WHERE (t.user_id = @teacher_id OR t.id = @teacher_id) AND s.administrative_class_id IS NOT NULL";
+
+            var allowedClassIds = (await conn.QueryAsync<int>(teacherClassesSql, new { teacher_id = user.UserId })).ToList();
+
+            if (class_id.HasValue)
+            {
+                if (!allowedClassIds.Contains(class_id.Value))
+                {
+                    return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách hoặc không dạy sinh viên thuộc lớp này" });
+                }
+            }
+            else
+            {
+                if (allowedClassIds.Count == 0)
+                {
+                    return Ok(Array.Empty<object>());
+                }
+                // Giới hạn phạm vi sinh viên chỉ trong các lớp GV phụ trách hoặc dạy học
+                sql += " AND s.administrative_class_id IN @allowed_classes";
+                parameters.Add("allowed_classes", allowedClassIds);
+            }
+        }
 
         if (class_id.HasValue)
         {
@@ -110,12 +120,21 @@ public class StudentsController : ControllerBase
         {
             var isAllowed = await conn.QueryFirstOrDefaultAsync<int>(@"
                 SELECT COUNT(*) FROM dbo.administrative_classes ac
-                WHERE ac.id = @admin_class_id AND ac.advisor_teacher_id = @teacher_id",
-                new { admin_class_id = (int)student.administrative_class_id, teacher_id = user.UserId });
+                WHERE ac.id = @admin_class_id AND (
+                    ac.advisor_teacher_id = @teacher_id
+                    OR ac.id IN (
+                        SELECT DISTINCT s.administrative_class_id
+                        FROM dbo.teacher_assignments ta
+                        JOIN dbo.teachers t ON t.id = ta.teacher_id
+                        JOIN dbo.enrollments e ON e.course_section_id = ta.course_section_id
+                        JOIN dbo.students s ON s.id = e.student_id
+                        WHERE (t.user_id = @teacher_id OR t.id = @teacher_id) AND s.administrative_class_id IS NOT NULL
+                    )
+                )", new { admin_class_id = (int)student.administrative_class_id, teacher_id = user.UserId });
 
             if (isAllowed == 0)
             {
-                return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách sinh viên thuộc lớp này" });
+                return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách hoặc không dạy sinh viên thuộc lớp này" });
             }
         }
 

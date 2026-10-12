@@ -24,17 +24,35 @@ export default function Students() {
       const res = await api.get(`/students?${q}`)
       const list = Array.isArray(res.data) ? res.data : (res.data?.data || [])
       setRows(list)
+
+      // Nếu là Giảng viên, tự động lọc danh sách Lớp hợp lệ xuất hiện trong kết quả sinh viên được phép xem
+      return list;
     } catch (e) {
       toast.error(e.response?.data?.error || e.message || 'Lỗi khi nạp danh sách sinh viên')
       setRows([])
+      return [];
     }
   }
 
   useEffect(() => {
     Promise.all([
       load(),
-      api.get('/academic/administrative-classes').then(r => setClasses(r.data?.data || r.data || [])).catch(() => {})
-    ])
+      api.get('/academic/administrative-classes').then(r => r.data?.data || r.data || []).catch(() => [])
+    ]).then(([studentList, allAdminClasses]) => {
+      if (user.role === 'teacher') {
+        // Chỉ giữ các lớp mà GV làm cố vấn hoặc có SV thuộc lớp đó trong danh sách GV được xem
+        const allowedClassIds = new Set((studentList || []).map(s => s.class_id || s.administrative_class_id).filter(Boolean))
+        const teacherClasses = (allAdminClasses || []).filter(c => 
+          c.advisor_teacher_id === user.id || allowedClassIds.has(c.id)
+        ).map(c => ({
+          ...c,
+          displayName: c.advisor_teacher_id === user.id ? `${c.name} [Lớp Cố Vấn]` : `${c.name} [Lớp Có SV Theo Học]`
+        }))
+        setClasses(teacherClasses)
+      } else {
+        setClasses((allAdminClasses || []).map(c => ({ ...c, displayName: c.name })))
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -77,9 +95,9 @@ export default function Students() {
             <Search className="w-4 h-4 absolute top-2.5 left-3 text-slate-400" />
             <input className="input pl-9 w-64 text-sm" placeholder="Tìm theo tên, MSSV, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <select className="input w-40 text-sm" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
-            <option value="">Tất cả các lớp</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <select className="input text-sm max-w-xs" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+            <option value="">{user.role === 'teacher' ? '-- Lớp phụ trách & giảng dạy --' : 'Tất cả các lớp'}</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.displayName || c.name}</option>)}
           </select>
           {canEdit && <button className="btn-primary" onClick={() => setModal({})}><Plus className="w-4 h-4" />Thêm sinh viên</button>}
         </div>

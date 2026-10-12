@@ -25,6 +25,29 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   if (req.user.role === 'student') {
     params.push(req.user.id);
     conds.push(`s.user_id = @p${params.length}`);
+  } else if (req.user.role === 'teacher') {
+    // PHÂN QUYỀN DATA SCOPE CHO GIẢNG VIÊN:
+    // Chỉ xem sinh viên thuộc Lớp hành chính mình làm Cố vấn HOẶC Lớp có SV học môn do GV này dạy
+    params.push(req.user.id);
+    const pUid = params.length;
+    conds.push(`(
+      s.administrative_class_id IN (
+        SELECT id FROM dbo.administrative_classes WHERE advisor_teacher_id = @p${pUid}
+      )
+      OR s.administrative_class_id IN (
+        SELECT DISTINCT st.administrative_class_id
+        FROM dbo.teacher_assignments ta
+        JOIN dbo.teachers t ON t.id = ta.teacher_id
+        JOIN dbo.enrollments e ON e.course_section_id = ta.course_section_id
+        JOIN dbo.students st ON st.id = e.student_id
+        WHERE (t.user_id = @p${pUid} OR t.id = @p${pUid}) AND st.administrative_class_id IS NOT NULL
+      )
+    )`);
+
+    if (targetClassId) {
+      params.push(parseInt(targetClassId, 10));
+      conds.push(`s.administrative_class_id = @p${params.length}`);
+    }
   } else if (targetClassId) {
     params.push(parseInt(targetClassId, 10));
     conds.push(`s.administrative_class_id = @p${params.length}`);

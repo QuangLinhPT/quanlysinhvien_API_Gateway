@@ -52,6 +52,7 @@ Hệ thống phân định rạch ròi giữa các vai trò nhằm đảm bảo 
   - **Bị chặn quyền xóa dữ liệu gốc** nhằm ngăn chặn rủi ro mất mát dữ liệu đào tạo.
 
 ### Bảo mật Data Scope cho Giảng viên & Sinh viên:
+* **Bảo mật Phạm vi Quản lý Sinh viên của Giảng viên:** Giảng viên chỉ xem được danh sách sinh viên thuộc các **Lớp hành chính mà mình làm Cố vấn học tập** HOẶC các **Lớp hành chính có sinh viên đang theo học môn/LHP do giảng viên đó giảng dạy**. Các lớp ngoài phạm vi phụ trách đều tự động bị ẩn.
 * **Bảo mật Phạm vi Lớp học của Giảng viên (`checkTeacherSectionScope`):** Giảng viên chỉ có quyền xem danh sách sinh viên và nhập/sửa điểm nháp đối với các Lớp học phần mà mình được phân công trong `teacher_assignments`. Mọi truy cập vào LHP của giảng viên khác đều bị chặn (`403 Forbidden`).
 * **Bảo mật Chống IDOR Sinh viên (`checkStudentScope`):** Sinh viên chỉ truy cập được bảng điểm, tiến độ tích lũy và gửi đơn phúc khảo của chính mình. Toàn bộ ID được lấy từ JWT decoded trên Server; mọi nỗ lực thay đổi ID trên URL/Body đều bị từ chối.
 * **Workflow khóa điểm an toàn:** Điểm ở trạng thái `LOCKED` không thể sửa trực tiếp via PUT request. Mọi điều chỉnh bắt buộc phải qua Đơn phúc khảo (`grade_appeals`) và tự động lưu vết vào `grade_histories`.

@@ -348,11 +348,147 @@ router.get('/student/degree-audit', authRequired, checkStudentScope, async (req,
 // --- 4.5 API THỐNG KÊ & SẮP XẾP ĐIỂM (ADMIN / STAFF / TEACHER) ---
 router.get('/statistics', authRequired, requireRoles('admin', 'staff', 'teacher'), async (req, res, next) => {
   try {
-    const { cohortId, academicYearId, semesterId, adminClassId, scope = 'ACCUMULATED', sortBy = 'gpa_desc', search = '', page = '1', pageSize = '20' } = req.query;
+    const { cohortId, academicYearId, semesterId, adminClassId, courseId, scope = 'ACCUMULATED', sortBy = 'gpa_desc', search = '', page = '1', pageSize = '20' } = req.query;
     const pg = Math.max(1, parseInt(page, 10) || 1);
     const ps = Math.min(200, Math.max(1, parseInt(pageSize, 10) || 20));
 
     let targetAdminClassId = adminClassId;
+
+    // NẾU CÓ CHỌN MÔN HỌC (courseId): Chuyển sang chế độ Thống kê Điểm Chi Tiết Môn Học Theo Lớp
+    if (courseId && !isNaN(parseInt(courseId, 10))) {
+      const cId = parseInt(courseId, 10);
+      const params = [cId];
+      const whereClauses = ['cs.course_id = @p1'];
+
+      if (targetAdminClassId && !isNaN(parseInt(targetAdminClassId, 10))) {
+        params.push(parseInt(targetAdminClassId, 10));
+        whereClauses.push(`s.administrative_class_id = @p${params.length}`);
+      }
+      if (semesterId && !isNaN(parseInt(semesterId, 10))) {
+        params.push(parseInt(semesterId, 10));
+        whereClauses.push(`cs.semester_id = @p${params.length}`);
+      }
+      if (academicYearId && !isNaN(parseInt(academicYearId, 10))) {
+        params.push(parseInt(academicYearId, 10));
+        whereClauses.push(`sem.academic_year_id = @p${params.length}`);
+      }
+      if (search && String(search).trim() !== '') {
+        params.push(`%${String(search).trim()}%`);
+        whereClauses.push(`(u.full_name LIKE @p${params.length} OR s.student_code LIKE @p${params.length} OR ac.code LIKE @p${params.length})`);
+      }
+
+      const whereSql = 'WHERE ' + whereClauses.join(' AND ');
+
+      // Sắp xếp
+      let orderClause = 'gr.total_score DESC, s.student_code ASC';
+      if (sortBy === 'gpa_asc') orderClause = 'gr.total_score ASC, s.student_code ASC';
+      else if (sortBy === 'name_asc') orderClause = 'u.full_name ASC, s.student_code ASC';
+      else if (sortBy === 'code_asc') orderClause = 's.student_code ASC';
+
+      const offset = (pg - 1) * ps;
+      params.push(offset);
+      const offParam = params.length;
+      params.push(ps);
+      const fetchParam = params.length;
+
+      const sqlList = `
+        SELECT s.id AS student_id, s.student_code, u.full_name AS student_name,
+               ac.code AS admin_class_code, ac.name AS admin_class_name,
+               c.id AS course_id, c.course_code, c.name AS course_name, c.credits,
+               cs.section_code,
+               gr.id AS grade_record_id, gr.attendance_score, gr.continuous_score,
+               gr.final_exam_score, gr.resit_exam_score, gr.total_score,
+               gr.letter_grade, gr.is_passed, gr.status AS grade_status,
+               ROW_NUMBER() OVER (ORDER BY ${orderClause}) AS rank,
+               COUNT(*) OVER() AS total_count
+        FROM dbo.grade_records gr
+        JOIN dbo.enrollments e ON gr.enrollment_id = e.id
+        JOIN dbo.course_sections cs ON e.course_section_id = cs.id
+        JOIN dbo.courses c ON cs.course_id = c.id
+        JOIN dbo.semesters sem ON cs.semester_id = sem.id
+        JOIN dbo.students s ON e.student_id = s.id
+        JOIN dbo.users u ON s.user_id = u.id
+        LEFT JOIN dbo.administrative_classes ac ON s.administrative_class_id = ac.id
+        ${whereSql}
+        ORDER BY ${orderClause}
+        OFFSET @p${offParam} ROWS FETCH NEXT @p${fetchParam} ROWS ONLY
+      `;
+
+      const listRes = await query(sqlList, params);
+      const total = listRes.rows.length ? (listRes.rows[0].total_count ?? 0) : 0;
+      const totalPages = Math.max(1, Math.ceil(total / ps));
+
+      // Thống kê tổng hợp (summary): Điểm TB môn, phổ điểm A, B, C, D, F, tỷ lệ đỗ
+      const sumParams = params.slice(0, offParam - 1);
+      const summarySql = `
+        SELECT 
+          COUNT(*) AS total_students,
+          COALESCE(ROUND(AVG(CAST(gr.total_score AS FLOAT)), 2), 0) AS avg_score,
+          SUM(CASE WHEN gr.is_passed = 1 THEN 1 ELSE 0 END) AS passed_count,
+          SUM(CASE WHEN gr.is_passed = 0 THEN 1 ELSE 0 END) AS failed_count,
+          SUM(CASE WHEN gr.resit_exam_score IS NOT NULL THEN 1 ELSE 0 END) AS resit_count,
+          SUM(CASE WHEN gr.letter_grade = 'A' THEN 1 ELSE 0 END) AS count_A,
+          SUM(CASE WHEN gr.letter_grade = 'B' THEN 1 ELSE 0 END) AS count_B,
+          SUM(CASE WHEN gr.letter_grade = 'C' THEN 1 ELSE 0 END) AS count_C,
+          SUM(CASE WHEN gr.letter_grade = 'D' THEN 1 ELSE 0 END) AS count_D,
+          SUM(CASE WHEN gr.letter_grade = 'F' THEN 1 ELSE 0 END) AS count_F
+        FROM dbo.grade_records gr
+        JOIN dbo.enrollments e ON gr.enrollment_id = e.id
+        JOIN dbo.course_sections cs ON e.course_section_id = cs.id
+        JOIN dbo.courses c ON cs.course_id = c.id
+        JOIN dbo.semesters sem ON cs.semester_id = sem.id
+        JOIN dbo.students s ON e.student_id = s.id
+        JOIN dbo.users u ON s.user_id = u.id
+        LEFT JOIN dbo.administrative_classes ac ON s.administrative_class_id = ac.id
+        ${whereSql}
+      `;
+      const sumRes = await query(summarySql, sumParams);
+      const summary = sumRes.rows[0] || {};
+
+      const mappedList = listRes.rows.map(row => ({
+        student_id: row.student_id,
+        student_code: row.student_code,
+        student_name: row.student_name,
+        admin_class_code: row.admin_class_code || 'Chưa xếp lớp',
+        section_code: row.section_code,
+        course_name: row.course_name,
+        course_code: row.course_code,
+        credits: row.credits,
+        attendance_score: row.attendance_score,
+        continuous_score: row.continuous_score,
+        final_exam_score: row.final_exam_score,
+        resit_exam_score: row.resit_exam_score,
+        total_score: row.total_score,
+        gpa: row.total_score,
+        letter_grade: row.letter_grade,
+        is_passed: row.is_passed,
+        grade_status: row.grade_status,
+        rank: row.rank,
+        rankClassification: row.letter_grade === 'A' ? 'Xuất sắc' : row.letter_grade === 'B' ? 'Giỏi' : row.letter_grade === 'C' ? 'Khá' : row.letter_grade === 'D' ? 'Trung bình' : 'Trượt'
+      }));
+
+      return res.json({
+        success: true,
+        mode: 'COURSE_SECTION',
+        data: mappedList,
+        summary: {
+          totalStudents: Number(summary.total_students || 0),
+          avgScore: Number(summary.avg_score || 0),
+          passedCount: Number(summary.passed_count || 0),
+          failedCount: Number(summary.failed_count || 0),
+          resitCount: Number(summary.resit_count || 0),
+          passRate: summary.total_students > 0 ? Math.round((Number(summary.passed_count) / Number(summary.total_students)) * 100) : 0,
+          distribution: {
+            A: Number(summary.count_A || 0),
+            B: Number(summary.count_B || 0),
+            C: Number(summary.count_C || 0),
+            D: Number(summary.count_D || 0),
+            F: Number(summary.count_F || 0)
+          }
+        },
+        pagination: { page: Math.min(pg, totalPages), pageSize: ps, total, totalPages }
+      });
+    }
 
     // Điều kiện điểm đưa vào GPA — khớp công thức JS cũ:
     // SEMESTER (ĐTBHK): mọi môn có điểm; ACCUMULATED (ĐTBTL): chỉ môn ĐÃ ĐẠT có điểm

@@ -3,7 +3,7 @@ import api from '../lib/api'
 import Pagination from '../components/Pagination'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { Filter, ArrowUpDown, Loader2, Search, BarChart3, Users, Award, BookOpen, Layers, Calendar, X, Eye } from 'lucide-react'
+import { Filter, ArrowUpDown, Loader2, Search, BarChart3, Users, Award, BookOpen, Layers, Calendar, X, Eye, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react'
 
 export default function GradeStatsPage() {
   const { user } = useAuth()
@@ -13,10 +13,12 @@ export default function GradeStatsPage() {
   const [academicYears, setAcademicYears] = useState([])
   const [semesters, setSemesters] = useState([])
   const [adminClasses, setAdminClasses] = useState([])
+  const [courses, setCourses] = useState([])
   
   // States bộ lọc
   const [selectedCohort, setSelectedCohort] = useState('')
   const [selectedAdminClass, setSelectedAdminClass] = useState('')
+  const [selectedCourse, setSelectedCourse] = useState('')
   const [selectedAcademicYear, setSelectedAcademicYear] = useState('')
   const [selectedSemester, setSelectedSemester] = useState('')
   const [scope, setScope] = useState('ACCUMULATED') // ACCUMULATED | SEMESTER
@@ -24,6 +26,8 @@ export default function GradeStatsPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const [rankings, setRankings] = useState([])
+  const [courseSummary, setCourseSummary] = useState(null)
+  const [isCourseMode, setIsCourseMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -40,11 +44,13 @@ export default function GradeStatsPage() {
         api.get('/academic/academic-years'),
         api.get('/academic/semesters'),
         api.get('/academic/administrative-classes'),
+        api.get('/academic/courses')
       ])
       if (results[0].status === 'fulfilled') setCohorts(results[0].value.data?.data || [])
       if (results[1].status === 'fulfilled') setAcademicYears(results[1].value.data?.data || [])
       if (results[2].status === 'fulfilled') setSemesters(results[2].value.data?.data || [])
       if (results[3].status === 'fulfilled') setAdminClasses(results[3].value.data?.data || [])
+      if (results[4].status === 'fulfilled') setCourses(results[4].value.data?.data || results[4].value.data || [])
     } catch (e) {
       console.error('Lỗi khi nạp danh mục:', e)
     }
@@ -56,6 +62,7 @@ export default function GradeStatsPage() {
       const params = new URLSearchParams()
       if (selectedCohort) params.append('cohortId', selectedCohort)
       if (selectedAdminClass) params.append('adminClassId', selectedAdminClass)
+      if (selectedCourse) params.append('courseId', selectedCourse)
       if (selectedAcademicYear) params.append('academicYearId', selectedAcademicYear)
       if (scope === 'SEMESTER' && selectedSemester) params.append('semesterId', selectedSemester)
       params.append('scope', scope)
@@ -66,6 +73,14 @@ export default function GradeStatsPage() {
 
       const res = await api.get(`/grades/statistics?${params.toString()}`)
       setRankings(res.data?.data || [])
+      if (res.data?.mode === 'COURSE_SECTION') {
+        setIsCourseMode(true)
+        setCourseSummary(res.data?.summary || null)
+      } else {
+        setIsCourseMode(false)
+        setCourseSummary(null)
+      }
+
       const pg = res.data?.pagination
       if (pg) {
         setPagination(pg)
@@ -80,7 +95,7 @@ export default function GradeStatsPage() {
 
   useEffect(() => { loadInitData() }, [])
   // Đổi bộ lọc/sắp xếp/phạm vi -> quay về trang 1 (phân trang server, mỗi trang 20)
-  useEffect(() => { setPage(1); loadRankings(1, pageSize, searchQuery) }, [selectedCohort, selectedAdminClass, selectedAcademicYear, selectedSemester, scope, sortBy])
+  useEffect(() => { setPage(1); loadRankings(1, pageSize, searchQuery) }, [selectedCohort, selectedAdminClass, selectedCourse, selectedAcademicYear, selectedSemester, scope, sortBy])
   // Tìm kiếm debounce 350ms để giảm tải API thống kê nặng (bỏ qua lần render đầu)
   useEffect(() => {
     if (searchFirstRender.current) { searchFirstRender.current = false; return }
@@ -98,6 +113,9 @@ export default function GradeStatsPage() {
   const avgGpa = filteredRankings.length > 0
     ? (filteredRankings.reduce((sum, r) => sum + (Number(r.gpa) || 0), 0) / filteredRankings.length).toFixed(2)
     : '0.00'
+
+  const selectedCourseObj = courses.find(c => String(c.id) === String(selectedCourse))
+  const selectedClassObj = adminClasses.find(ac => String(ac.id) === String(selectedAdminClass))
 
   return (
     <div className="space-y-6">
@@ -126,13 +144,13 @@ export default function GradeStatsPage() {
       </div>
 
       {/* TOOLBAR BỘ LỌC ĐA CHIỀU */}
-      <div className="card p-4 grid sm:grid-cols-6 gap-3 bg-slate-50 border border-slate-200">
-        {/* 1. Lọc Khóa tuyển sinh */}
+      <div className="card p-4 grid sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-slate-50 border border-slate-200">
+        {/* 1. Lọc Môn Học Cụ Thể (Yêu cầu mới) */}
         <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-brand-600 shrink-0" />
-          <select className="input text-xs font-medium" value={selectedCohort} onChange={e => { setSelectedCohort(e.target.value); setSelectedAdminClass('') }}>
-            <option value="">-- Tất cả Khóa --</option>
-            {cohorts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+          <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+          <select className="input text-xs font-bold text-emerald-800 border-emerald-300 bg-emerald-50/50" value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
+            <option value="">-- Tất cả Môn (GPA) --</option>
+            {courses.map(c => <option key={c.id} value={c.id}>Môn: {c.course_code} - {c.name}</option>)}
           </select>
         </div>
 
@@ -145,26 +163,21 @@ export default function GradeStatsPage() {
           </select>
         </div>
 
-        {/* 3. Lọc Năm học (Chuẩn hóa nhất quán: Năm Học YYYY - YYYY) */}
+        {/* 3. Lọc Khóa tuyển sinh */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Năm học:</span>
-          <select className="input text-xs font-medium" value={selectedAcademicYear} onChange={e => { setSelectedAcademicYear(e.target.value); setSelectedSemester('') }}>
-            <option value="">-- Tất cả Năm học --</option>
-            {academicYears.map(ay => {
-              const ayName = ay.name?.startsWith('Năm Học') ? ay.name : `Năm Học ${ay.code.replace('-', ' - ')}`;
-              return <option key={ay.id} value={ay.id}>{ayName}</option>
-            })}
+          <Layers className="w-4 h-4 text-brand-600 shrink-0" />
+          <select className="input text-xs font-medium" value={selectedCohort} onChange={e => { setSelectedCohort(e.target.value); setSelectedAdminClass('') }}>
+            <option value="">-- Tất cả Khóa --</option>
+            {cohorts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
           </select>
         </div>
 
         {/* 4. Lọc Học kỳ */}
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-brand-600 shrink-0" />
-          <select disabled={scope !== 'SEMESTER'} className={`input text-xs font-medium ${scope !== 'SEMESTER' ? 'bg-slate-100 text-slate-400' : ''}`} value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
+          <select className="input text-xs font-medium" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
             <option value="">-- Tất cả Học kỳ --</option>
-            {semesters
-              .filter(s => !selectedAcademicYear || String(s.academic_year_id) === String(selectedAcademicYear))
-              .map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 
@@ -172,8 +185,8 @@ export default function GradeStatsPage() {
         <div className="flex items-center gap-2">
           <ArrowUpDown className="w-4 h-4 text-brand-600 shrink-0" />
           <select className="input text-xs font-medium" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="gpa_desc">GPA (Cao ➔ Thấp)</option>
-            <option value="gpa_asc">GPA (Thấp ➔ Cao)</option>
+            <option value="gpa_desc">Điểm (Cao ➔ Thấp)</option>
+            <option value="gpa_asc">Điểm (Thấp ➔ Cao)</option>
             <option value="name_asc">Tên (A-Z)</option>
             <option value="code_asc">MSSV</option>
           </select>
@@ -182,45 +195,193 @@ export default function GradeStatsPage() {
         {/* 6. Tìm kiếm */}
         <div className="flex items-center gap-2 relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3" />
-          <input className="input pl-8 text-xs" placeholder="Tìm tên, MSSV, Lớp..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <input className="input pl-8 text-xs" placeholder="Tìm tên, MSSV..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
       </div>
 
       {/* THỐNG KÊ TỔNG QUAN */}
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Sinh Viên Thống Kê</span>
-            <div className="text-2xl font-extrabold text-slate-800 mt-1">{pagination.total} sinh viên</div>
+      {isCourseMode && courseSummary ? (
+        <div className="space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-xs text-emerald-800 font-bold uppercase tracking-wider">
+                📌 Thống Kê Điểm Học Phần: <span className="text-emerald-950 font-extrabold text-sm">{selectedCourseObj ? `${selectedCourseObj.course_code} - ${selectedCourseObj.name}` : 'Môn học'}</span>
+              </div>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                {selectedClassObj ? `Phạm vi Lớp Hành Chính: ${selectedClassObj.code} - ${selectedClassObj.name}` : 'Toàn bộ sinh viên học môn này'}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedCourse('')}
+              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
+            >
+              <X className="w-3.5 h-3.5" /> Bỏ lọc môn (Về ĐTB)
+            </button>
           </div>
-          <Users className="w-8 h-8 text-brand-600 opacity-80" />
-        </div>
 
-        <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {scope === 'SEMESTER' ? 'ĐTB Học Kỳ TB Trang Hiện Tại' : 'ĐTB Tích Lũy TB Trang Hiện Tại'}
-            </span>
-            <div className="text-2xl font-extrabold text-brand-700 mt-1">{avgGpa} / 10</div>
-          </div>
-          <Award className="w-8 h-8 text-amber-500 opacity-80" />
-        </div>
+          <div className="grid sm:grid-cols-4 gap-4">
+            <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sĩ Số Đăng Ký Môn</span>
+                <div className="text-2xl font-extrabold text-slate-800 mt-1">{courseSummary.totalStudents} sinh viên</div>
+              </div>
+              <Users className="w-8 h-8 text-brand-600 opacity-80" />
+            </div>
 
-        <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Phương Thức Tính Điểm</span>
-            <div className="text-sm font-bold text-slate-800 mt-1">
-              {scope === 'ACCUMULATED' ? 'ĐTBTL: Chỉ tính các môn ĐÃ ĐẠT tích lũy' : 'ĐTBHK: Tính tất cả môn HK (gồm cả môn trượt)'}
+            <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Điểm Trung Bình Môn</span>
+                <div className="text-2xl font-extrabold text-emerald-600 mt-1">{courseSummary.avgScore} / 10</div>
+              </div>
+              <Award className="w-8 h-8 text-amber-500 opacity-80" />
+            </div>
+
+            <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tỷ Lệ Đạt Môn (Pass)</span>
+                <div className="text-2xl font-extrabold text-blue-600 mt-1">{courseSummary.passRate}% ({courseSummary.passedCount} SV)</div>
+              </div>
+              <CheckCircle className="w-8 h-8 text-blue-600 opacity-80" />
+            </div>
+
+            <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Trượt Môn (Thi Liệt / F)</span>
+                <div className="text-2xl font-extrabold text-red-600 mt-1">{courseSummary.failedCount} SV ({courseSummary.resitCount} thi L2)</div>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-red-500 opacity-80" />
             </div>
           </div>
-          <BookOpen className="w-8 h-8 text-emerald-600 opacity-80" />
+
+          {/* Phổ điểm A, B, C, D, F */}
+          <div className="card p-4 bg-slate-50 border border-slate-200">
+            <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Phân Bố Phổ Điểm Chữ Môn Học:</div>
+            <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              <div className="p-2.5 rounded-lg bg-purple-100 border border-purple-200">
+                <span className="font-extrabold text-purple-800 text-sm block">{courseSummary.distribution.A}</span>
+                <span className="text-purple-600 font-semibold">Điểm A (Giỏi)</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-indigo-100 border border-indigo-200">
+                <span className="font-extrabold text-indigo-800 text-sm block">{courseSummary.distribution.B}</span>
+                <span className="text-indigo-600 font-semibold">Điểm B (Khá)</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-sky-100 border border-sky-200">
+                <span className="font-extrabold text-sky-800 text-sm block">{courseSummary.distribution.C}</span>
+                <span className="text-sky-600 font-semibold">Điểm C (TB Khá)</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-amber-100 border border-amber-200">
+                <span className="font-extrabold text-amber-800 text-sm block">{courseSummary.distribution.D}</span>
+                <span className="text-amber-600 font-semibold">Điểm D (Trung bình)</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-red-100 border border-red-200">
+                <span className="font-extrabold text-red-800 text-sm block">{courseSummary.distribution.F}</span>
+                <span className="text-red-600 font-semibold">Điểm F (Trượt môn)</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Sinh Viên Thống Kê</span>
+              <div className="text-2xl font-extrabold text-slate-800 mt-1">{pagination.total} sinh viên</div>
+            </div>
+            <Users className="w-8 h-8 text-brand-600 opacity-80" />
+          </div>
+
+          <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {scope === 'SEMESTER' ? 'ĐTB Học Kỳ TB Trang Hiện Tại' : 'ĐTB Tích Lũy TB Trang Hiện Tại'}
+              </span>
+              <div className="text-2xl font-extrabold text-brand-700 mt-1">{avgGpa} / 10</div>
+            </div>
+            <Award className="w-8 h-8 text-amber-500 opacity-80" />
+          </div>
+
+          <div className="card p-4 bg-white border border-slate-200 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Phương Thức Tính Điểm</span>
+              <div className="text-sm font-bold text-slate-800 mt-1">
+                {scope === 'ACCUMULATED' ? 'ĐTBTL: Chỉ tính các môn ĐÃ ĐẠT tích lũy' : 'ĐTBHK: Tính tất cả môn HK (gồm cả môn trượt)'}
+              </div>
+            </div>
+            <BookOpen className="w-8 h-8 text-emerald-600 opacity-80" />
+          </div>
+        </div>
+      )}
 
       {/* BẢNG DỮ LIỆU THỐNG KÊ */}
       <div className="card p-5 space-y-4">
         {loading ? (
           <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-600" /></div>
+        ) : isCourseMode ? (
+          /* BẢNG ĐIỂM CHI TIẾT TỪNG MÔN THEO LỚP */
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="w-12 text-center">STT</th>
+                  <th>MSSV</th>
+                  <th>Họ và Tên Sinh Viên</th>
+                  <th>Lớp HC</th>
+                  <th>Mã LHP</th>
+                  <th className="text-center">Chuyên Cần (10%)</th>
+                  <th className="text-center">Quá Trình (30%)</th>
+                  <th className="text-center">Thi L1 (60%)</th>
+                  <th className="text-center">Thi L2</th>
+                  <th className="text-center">Tổng Kết (Hệ 10)</th>
+                  <th className="text-center">Điểm Chữ</th>
+                  <th className="text-center">Kết Quả</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRankings.map((st) => (
+                  <tr
+                    key={st.student_id}
+                    onClick={() => setSelectedStudent(st)}
+                    className="hover:bg-slate-50 cursor-pointer transition text-xs"
+                    title="Click để xem toàn bộ bảng điểm cá nhân"
+                  >
+                    <td className="text-center font-bold text-slate-500">{st.rank}</td>
+                    <td className="font-mono font-semibold text-brand-700">{st.student_code}</td>
+                    <td className="font-medium text-slate-800">{st.student_name}</td>
+                    <td className="text-slate-600">{st.admin_class_code}</td>
+                    <td className="font-mono text-slate-500">{st.section_code}</td>
+                    <td className="text-center font-medium">{st.attendance_score ?? '—'}</td>
+                    <td className="text-center font-medium">{st.continuous_score ?? '—'}</td>
+                    <td className={`text-center font-semibold ${Number(st.final_exam_score) < 5.0 ? 'text-red-600 font-bold' : ''}`}>
+                      {st.final_exam_score ?? '—'}
+                    </td>
+                    <td className="text-center font-semibold text-amber-700">
+                      {st.resit_exam_score ?? '—'}
+                    </td>
+                    <td className="text-center font-extrabold text-sm text-brand-700">
+                      {st.total_score != null ? Number(st.total_score).toFixed(2) : '—'}
+                    </td>
+                    <td className="text-center font-bold">
+                      <span className={`px-2 py-0.5 rounded text-[11px] ${st.letter_grade === 'A' ? 'bg-purple-100 text-purple-800' : st.letter_grade === 'B' ? 'bg-indigo-100 text-indigo-800' : st.letter_grade === 'C' ? 'bg-sky-100 text-sky-800' : st.letter_grade === 'D' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+                        {st.letter_grade || '—'}
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      {st.is_passed === true ? (
+                        <span className="badge bg-emerald-100 text-emerald-800 font-bold">ĐẠT</span>
+                      ) : st.is_passed === false ? (
+                        <span className="badge bg-red-100 text-red-800 font-bold">TRƯỢT</span>
+                      ) : (
+                        <span className="text-slate-400">Chưa đủ điểm</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filteredRankings.length === 0 && (
+                  <tr><td colSpan={12} className="text-center text-slate-400 py-8">Không có sinh viên nào của lớp này học môn học được chọn</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full">

@@ -76,6 +76,13 @@ router.get('/', authRequired, asyncH(async (req, res) => {
       endTime = '15:30';
     }
 
+    // Trích xuất ngày nếu chuỗi có dạng " - DD/MM/YYYY"
+    let specificDate = null;
+    const dateMatch = schedStr.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (dateMatch) {
+      specificDate = dateMatch[1];
+    }
+
     result.push({
       id: row.course_section_id,
       section_id: row.course_section_id,
@@ -84,12 +91,14 @@ router.get('/', authRequired, asyncH(async (req, res) => {
       period,
       start_time: startTime,
       end_time: endTime,
+      specific_date: specificDate,
       subject_name: `${row.course_code} - ${row.course_name}`,
       course_name: row.course_name,
       course_code: row.course_code,
       credits: row.credits,
       teacher_name: row.teacher_name || 'Chưa phân công',
       room: row.room || 'Phòng A201',
+      schedule: row.schedule,
       semester_name: row.semester_name,
       semester_start_date: row.semester_start_date,
       semester_end_date: row.semester_end_date,
@@ -97,6 +106,54 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   });
 
   res.json(result);
+}));
+
+// --- ROUTE TẠO / CẬP NHẬT LỊCH HỌC TRỰC TIẾP (KHÔNG CẦN EXCEL) ---
+router.post('/schedule', authRequired, requireRoles('admin', 'staff', 'teacher'), asyncH(async (req, res) => {
+  const { course_section_id, day_of_week, period, room, specific_date } = req.body;
+
+  if (!course_section_id) {
+    return res.status(400).json({ error: 'Vui lòng chọn Lớp học phần' });
+  }
+
+  const csRes = await query('SELECT id, section_code FROM dbo.course_sections WHERE id=@p1', [course_section_id]);
+  if (!csRes.rows.length) {
+    return res.status(404).json({ error: 'Lớp học phần không tồn tại' });
+  }
+
+  const dayStr = day_of_week || 'Thứ Hai';
+  const periodStr = period || '1-3';
+  const roomStr = room ? room.trim() : 'Phòng A201';
+
+  // Format ngày nếu có (DD/MM/YYYY hoặc YYYY-MM-DD)
+  let dateFormatted = '';
+  if (specific_date) {
+    const d = new Date(specific_date);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      dateFormatted = ` - ${dd}/${mm}/${yyyy}`;
+    }
+  }
+
+  const scheduleStr = `${dayStr} (Tiết ${periodStr})${dateFormatted}`;
+
+  await query('UPDATE dbo.course_sections SET room=@p1, schedule=@p2 WHERE id=@p3', [
+    roomStr,
+    scheduleStr,
+    course_section_id
+  ]);
+
+  res.json({
+    success: true,
+    message: 'Tạo lịch học thành công!',
+    data: {
+      course_section_id,
+      room: roomStr,
+      schedule: scheduleStr
+    }
+  });
 }));
 
 module.exports = router;

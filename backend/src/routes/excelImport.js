@@ -93,25 +93,42 @@ router.post('/import-grades', authRequired, requireRoles('teacher', 'staff', 'ad
   } catch (err) { next(err); }
 });
 
-// --- TẢI FILE EXCEL MẪU THỜI KHÓA BIỂU ---
+// --- TẢI FILE EXCEL MẪU THỜI KHÓA BIỂU CÓ TRƯỜNG NGÀY HỌC ---
 router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', 'teacher'), async (req, res, next) => {
   try {
     const sampleData = [
       {
+        'STT': 1,
         'Mã LHP': 'LHP-INT1001-01',
         'Mã Môn': 'INT1001',
-        'Thứ': 'Thứ 2',
+        'Tên Môn Học': 'Lập Trình Cơ Bản',
+        'Ngày Học (DD/MM/YYYY)': '12/10/2026',
+        'Thứ': 'Thứ Hai',
         'Tiết Học': '1-3',
         'Phòng Học': 'Phòng A201',
         'Tên Giảng Viên': 'Nguyễn Văn A'
       },
       {
+        'STT': 2,
         'Mã LHP': 'LHP-INT1002-01',
         'Mã Môn': 'INT1002',
-        'Thứ': 'Thứ 4',
+        'Tên Môn Học': 'Cấu Trúc Dữ Liệu',
+        'Ngày Học (DD/MM/YYYY)': '14/10/2026',
+        'Thứ': 'Thứ Tư',
         'Tiết Học': '7-9',
         'Phòng Học': 'Phòng B102',
         'Tên Giảng Viên': 'Trần Thị B'
+      },
+      {
+        'STT': 3,
+        'Mã LHP': 'LHP-INT1003-01',
+        'Mã Môn': 'INT1003',
+        'Tên Môn Học': 'Cơ Sở Dữ Liệu',
+        'Ngày Học (DD/MM/YYYY)': '16/10/2026',
+        'Thứ': 'Thứ Sáu',
+        'Tiết Học': '1-3',
+        'Phòng Học': 'Phòng C301',
+        'Tên Giảng Viên': 'Lê Văn C'
       }
     ];
 
@@ -125,6 +142,35 @@ router.get('/template-timetable', authRequired, requireRoles('admin', 'staff', '
     res.send(buffer);
   } catch (err) { next(err); }
 });
+
+// Helper chuyển đổi giá trị ngày từ Excel
+function parseExcelDate(dateVal) {
+  if (!dateVal) return null;
+  if (typeof dateVal === 'number') {
+    // Excel serial number date
+    const date = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    return date;
+  }
+  const s = String(dateVal).trim();
+  // Format DD/MM/YYYY
+  const partsDMY = s.split('/');
+  if (partsDMY.length === 3) {
+    const d = parseInt(partsDMY[0], 10);
+    const m = parseInt(partsDMY[1], 10) - 1;
+    const y = parseInt(partsDMY[2], 10);
+    return new Date(y, m, d);
+  }
+  // Format YYYY-MM-DD
+  const partsYMD = s.split('-');
+  if (partsYMD.length === 3) {
+    const y = parseInt(partsYMD[0], 10);
+    const m = parseInt(partsYMD[1], 10) - 1;
+    const d = parseInt(partsYMD[2], 10);
+    return new Date(y, m, d);
+  }
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
 
 // --- IMPORT CẬP NHẬT THỜI KHÓA BIỂU TỪ EXCEL ---
 router.post('/import-timetable', authRequired, requireRoles('admin', 'staff', 'teacher'), upload.single('file'), async (req, res, next) => {
@@ -140,17 +186,35 @@ router.post('/import-timetable', authRequired, requireRoles('admin', 'staff', 't
     const errors = [];
     const successRows = [];
 
+    const DAY_NAMES = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+
     for (let index = 0; index < sheetData.length; index++) {
       const row = sheetData[index];
       const rowNum = index + 2;
       const sectionCode = row['Mã LHP'] || row['section_code'];
-      const dayStr = row['Thứ'] || row['day_of_week'];
+      const rawDate = row['Ngày Học (DD/MM/YYYY)'] || row['Ngày Học'] || row['date'] || row['start_date'];
+      let dayStr = row['Thứ'] || row['day_of_week'];
       const periodStr = row['Tiết Học'] || row['period'] || row['schedule'];
       const roomStr = row['Phòng Học'] || row['room'];
 
       if (!sectionCode) {
         errors.push({ row: rowNum, error: 'Thiếu Mã Lớp học phần' });
         continue;
+      }
+
+      // Nếu có cột ngày học, tự động tính ra Thứ và format ngày chuẩn
+      let dateFormatted = '';
+      if (rawDate) {
+        const parsedDate = parseExcelDate(rawDate);
+        if (parsedDate) {
+          if (!dayStr) {
+            dayStr = DAY_NAMES[parsedDate.getDay()];
+          }
+          const dd = String(parsedDate.getDate()).padStart(2, '0');
+          const mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
+          const yyyy = parsedDate.getFullYear();
+          dateFormatted = ` - ${dd}/${mm}/${yyyy}`;
+        }
       }
 
       const csRes = await query('SELECT id FROM dbo.course_sections WHERE section_code=@p1', [sectionCode]);
@@ -160,7 +224,7 @@ router.post('/import-timetable', authRequired, requireRoles('admin', 'staff', 't
       }
 
       const sectionId = csRes.rows[0].id;
-      const schedule = `${dayStr || 'Thứ 2'} (Tiết ${periodStr || '1-3'})`;
+      const schedule = `${dayStr || 'Thứ Hai'} (Tiết ${periodStr || '1-3'})${dateFormatted}`;
 
       await query('UPDATE dbo.course_sections SET room=@p1, schedule=@p2 WHERE id=@p3', [
         roomStr || 'Phòng A201',

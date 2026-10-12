@@ -71,8 +71,9 @@ Hệ thống phân định rạch ròi giữa các vai trò nhằm đảm bảo 
  ├── Express Router Nghiệp vụ Học vụ & Tín chỉ:
  │    ├── /api/academic  -> Quản lý Khoa, Ngành, CTTĐ, Lớp Hành Chính, Học phần, Lớp HP, Đăng ký môn
  │    ├── /api/grades    -> Nhập điểm, Workflow (Draft->Locked), Tính điểm liệt, GPA, Phúc khảo
- │    ├── /api/excel     -> Import Điểm Excel & Thời khóa biểu với Row Validation
- │    ├── /api/assignments, /api/notices, /api/timetable, /api/dashboard
+ │    ├── /api/excel     -> Import Điểm Excel & Mẫu Thời Khóa Biểu (kèm Ngày Học DD/MM/YYYY)
+ │    ├── /api/timetable -> Xem Lịch theo Tuần/Kỳ, Tạo lịch học trực tiếp (POST /schedule)
+ │    └── /api/assignments, /api/notices, /api/dashboard
  └── Forward Proxy (Chuyển tiếp tới C# .NET Microservice với HTTP Keep-Alive & Auto Fallback)
          │
          │ Internal HTTP Header Injection (x-user-id, x-user-role, x-user-email)

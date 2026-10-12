@@ -47,12 +47,17 @@ app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/timetable', require('./routes/timetable'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
-// Các tuyến API được Gateway ủy quyền (Proxy) sang .NET Core Microservice (Port 5000)
-app.use('/api/students', authRequired, proxyToDotnet);
-app.use('/api/classes', authRequired, proxyToDotnet);
-app.use('/api/attendance', authRequired, proxyToDotnet);
-app.use('/api/marks', authRequired, proxyToDotnet);
-app.use('/api/fees', authRequired, proxyToDotnet);
+// Đăng ký các Tuyến API Học Vụ & Quản lý Điểm Tín Chỉ Chuẩn Hóa
+app.use('/api/academic', require('./routes/academic'));
+app.use('/api/grades', require('./routes/grades'));
+app.use('/api/excel', require('./routes/excelImport'));
+
+// Các tuyến API quản lý dữ liệu chuẩn Node.js Express & CSDL SQL Server (27 Bảng thuần tín chỉ)
+app.use('/api/students', authRequired, require('./routes/students'));
+app.use('/api/classes', authRequired, require('./routes/classes'));
+app.use('/api/attendance', authRequired, require('./routes/attendance'));
+app.use('/api/marks', authRequired, require('./routes/marks'));
+app.use('/api/fees', authRequired, require('./routes/fees'));
 
 // Phục vụ tệp tĩnh của giao diện Frontend (nếu đã build)
 const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');

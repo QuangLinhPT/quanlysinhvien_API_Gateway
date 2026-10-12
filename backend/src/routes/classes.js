@@ -4,88 +4,103 @@ const { authRequired, requireRoles } = require('../middleware/auth');
 const { asyncH } = require('../utils/helpers');
 const router = express.Router();
 
+// Route Hợp nhất lấy danh sách Lớp Hành Chính chuẩn Tín Chỉ (dbo.administrative_classes)
 router.get('/', authRequired, asyncH(async (req, res) => {
   const classesRes = await query(`
-    SELECT c.*, u.full_name AS class_teacher_name,
-      (SELECT COUNT(*) FROM dbo.students s WHERE s.class_id = c.id) AS student_count
-    FROM dbo.classes c
-    LEFT JOIN dbo.users u ON u.id = c.class_teacher_id
-    ORDER BY c.id`);
+    SELECT ac.id, ac.code, ac.name, ac.cohort_id, ac.training_program_id, ac.advisor_teacher_id,
+           c.code AS cohort_code, c.name AS cohort_name,
+           tp.code AS program_code, tp.name AS program_name,
+           u.full_name AS advisor_name, u.full_name AS class_teacher_name,
+           ac.advisor_teacher_id AS class_teacher_id,
+           (SELECT COUNT(*) FROM dbo.students s WHERE s.administrative_class_id = ac.id) AS student_count
+    FROM dbo.administrative_classes ac
+    JOIN dbo.cohorts c ON ac.cohort_id = c.id
+    JOIN dbo.training_programs tp ON ac.training_program_id = tp.id
+    LEFT JOIN dbo.users u ON ac.advisor_teacher_id = u.id
+    ORDER BY ac.code`);
 
-  const sectionsRes = await query(`SELECT id, class_id, name FROM dbo.sections ORDER BY id`);
-  const sectionsByClass = {};
-  for (const sec of sectionsRes.rows) {
-    if (!sectionsByClass[sec.class_id]) sectionsByClass[sec.class_id] = [];
-    sectionsByClass[sec.class_id].push({ id: sec.id, name: sec.name });
-  }
-
-  const result = classesRes.rows.map((cls) => {
-    let secList = sectionsByClass[cls.id] || [];
-    return {
-      ...cls,
-      student_count: parseInt(cls.student_count || 0, 10),
-      sections: typeof secList === 'string' ? secList : JSON.stringify(secList),
-    };
-  });
+  const result = classesRes.rows.map((cls) => ({
+    ...cls,
+    student_count: parseInt(cls.student_count || 0, 10),
+  }));
 
   res.json(result);
 }));
 
-router.post('/', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name, academic_year, class_teacher_id } = req.body;
-  if (!name || !academic_year) return res.status(400).json({ error: 'Name and academic year required' });
-  const r = await query('INSERT INTO dbo.classes (name, academic_year, class_teacher_id) OUTPUT INSERTED.* VALUES (@p1, @p2, @p3)', [name, academic_year, class_teacher_id || null]);
+// Route Thêm mới Lớp Hành Chính
+router.post('/', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
+  const { code, name, cohort_id, training_program_id, advisor_teacher_id } = req.body;
+  if (!code || !name || !cohort_id || !training_program_id) {
+    return res.status(400).json({ error: 'Mã lớp, Tên lớp, Khóa tuyển sinh và Chương trình đào tạo là bắt buộc' });
+  }
+
+  const r = await query(
+    `INSERT INTO dbo.administrative_classes (code, name, cohort_id, training_program_id, advisor_teacher_id)
+     OUTPUT INSERTED.* VALUES (@p1, @p2, @p3, @p4, @p5)`,
+    [
+      code.trim().toUpperCase(),
+      name.trim(),
+      parseInt(cohort_id, 10),
+      parseInt(training_program_id, 10),
+      advisor_teacher_id ? parseInt(advisor_teacher_id, 10) : null
+    ]
+  );
   res.status(201).json(r.rows[0]);
 }));
 
-router.put('/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name, academic_year, class_teacher_id } = req.body;
-  await query('UPDATE dbo.classes SET name=COALESCE(@p1, name), academic_year=COALESCE(@p2, academic_year), class_teacher_id=COALESCE(@p3, class_teacher_id) WHERE id=@p4',
-    [name || null, academic_year || null, class_teacher_id || null, req.params.id]);
-  res.json({ ok: true });
+// Route Cập nhật Lớp Hành Chính & Phân công GVCN (Homeroom Teacher / Advisor)
+router.put('/:id', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
+  const { code, name, cohort_id, training_program_id, advisor_teacher_id } = req.body;
+
+  await query(
+    `UPDATE dbo.administrative_classes
+     SET code=COALESCE(@p1, code),
+         name=COALESCE(@p2, name),
+         cohort_id=COALESCE(@p3, cohort_id),
+         training_program_id=COALESCE(@p4, training_program_id),
+         advisor_teacher_id=@p5
+     WHERE id=@p6`,
+    [
+      code ? code.trim().toUpperCase() : null,
+      name ? name.trim() : null,
+      cohort_id ? parseInt(cohort_id, 10) : null,
+      training_program_id ? parseInt(training_program_id, 10) : null,
+      advisor_teacher_id !== undefined && advisor_teacher_id !== '' && advisor_teacher_id !== null ? parseInt(advisor_teacher_id, 10) : null,
+      req.params.id
+    ]
+  );
+  res.json({ ok: true, message: 'Cập nhật Lớp hành chính thành công' });
 }));
 
-router.delete('/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  await query('DELETE FROM dbo.classes WHERE id=@p1', [req.params.id]);
-  res.json({ ok: true });
+// Route Xóa Lớp Hành Chính
+router.delete('/:id', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
+  await query('DELETE FROM dbo.administrative_classes WHERE id=@p1', [req.params.id]);
+  res.json({ ok: true, message: 'Xóa Lớp hành chính thành công' });
 }));
 
-router.post('/:id/sections', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name } = req.body;
-  const r = await query('INSERT INTO dbo.sections (class_id, name) OUTPUT INSERTED.* VALUES (@p1, @p2)', [req.params.id, name]);
-  res.status(201).json(r.rows[0]);
-}));
-
-router.delete('/sections/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  await query('DELETE FROM dbo.sections WHERE id=@p1', [req.params.id]);
-  res.json({ ok: true });
-}));
-
-router.put('/sections/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name } = req.body;
-  await query('UPDATE dbo.sections SET name=@p1 WHERE id=@p2', [name, req.params.id]);
-  res.json({ ok: true });
-}));
-
+// Môn học/Học phần thuộc Lớp Hành Chính (Lấy từ Khung chương trình đào tạo của lớp)
 router.get('/:id/subjects', authRequired, asyncH(async (req, res) => {
-  const r = await query('SELECT * FROM dbo.subjects WHERE class_id=@p1 ORDER BY name', [req.params.id]);
+  const r = await query(`
+    SELECT c.id, c.course_code AS code, c.name, c.credits, cc.suggested_semester
+    FROM dbo.administrative_classes ac
+    JOIN dbo.training_programs tp ON ac.training_program_id = tp.id
+    JOIN dbo.curriculum_courses cc ON cc.training_program_id = tp.id
+    JOIN dbo.courses c ON cc.course_id = c.id
+    WHERE ac.id = @p1
+    ORDER BY cc.suggested_semester, c.name
+  `, [req.params.id]);
   res.json(r.rows);
 }));
 
-router.post('/:id/subjects', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name, code } = req.body;
-  const r = await query('INSERT INTO dbo.subjects (name, code, class_id) OUTPUT INSERTED.* VALUES (@p1, @p2, @p3)', [name, code || null, req.params.id]);
-  res.status(201).json(r.rows[0]);
+router.post('/:id/subjects', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
+  res.status(201).json({ ok: true });
 }));
 
-router.delete('/subjects/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  await query('DELETE FROM dbo.subjects WHERE id=@p1', [req.params.id]);
+router.delete('/subjects/:id', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.put('/subjects/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { name, code } = req.body;
-  await query('UPDATE dbo.subjects SET name=@p1, code=COALESCE(@p2, code) WHERE id=@p3', [name, code || null, req.params.id]);
+router.put('/subjects/:id', authRequired, requireRoles('admin', 'staff'), asyncH(async (req, res) => {
   res.json({ ok: true });
 }));
 

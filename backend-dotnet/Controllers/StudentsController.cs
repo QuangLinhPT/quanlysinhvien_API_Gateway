@@ -28,31 +28,53 @@ public class StudentsController : ControllerBase
         }
 
         using var conn = _dbFactory.CreateConnection();
+
+        // Nếu là Giảng viên, kiểm tra quyền truy cập theo lớp hành chính phụ trách
+        if (user.Role == "teacher")
+        {
+            var teacherClassesSql = @"
+                SELECT DISTINCT ac.id
+                FROM dbo.administrative_classes ac
+                WHERE ac.advisor_teacher_id = @teacher_id";
+
+            var allowedClassIds = (await conn.QueryAsync<int>(teacherClassesSql, new { teacher_id = user.UserId })).ToList();
+
+            if (class_id.HasValue)
+            {
+                if (!allowedClassIds.Contains(class_id.Value))
+                {
+                    return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách lớp hành chính này" });
+                }
+            }
+            else
+            {
+                if (allowedClassIds.Count == 0)
+                {
+                    return Ok(Array.Empty<object>());
+                }
+            }
+        }
+
         var sql = @"
-            SELECT TOP 1000 s.id, s.user_id, s.roll_number, s.class_id, s.section_id, s.dob, s.gender, s.address,
-                   s.guardian_name, s.guardian_phone, s.guardian_email, s.admission_date, s.blood_group,
+            SELECT TOP 1000 s.id, s.user_id, s.student_code AS roll_number, s.student_code,
+                   s.administrative_class_id AS class_id, s.date_of_birth AS dob, s.gender, s.address,
                    u.email, u.full_name, u.phone, u.is_active,
-                   c.name AS class_name, sec.name AS section_name
+                   ac.code AS class_name, ac.name AS administrative_class_name
             FROM dbo.students s
             JOIN dbo.users u ON u.id = s.user_id
-            LEFT JOIN dbo.classes c ON c.id = s.class_id
-            LEFT JOIN dbo.sections sec ON sec.id = s.section_id
+            LEFT JOIN dbo.administrative_classes ac ON ac.id = s.administrative_class_id
             WHERE 1=1";
 
         var parameters = new DynamicParameters();
+
         if (class_id.HasValue)
         {
-            sql += " AND s.class_id = @class_id";
+            sql += " AND s.administrative_class_id = @class_id";
             parameters.Add("class_id", class_id.Value);
-        }
-        if (section_id.HasValue)
-        {
-            sql += " AND s.section_id = @section_id";
-            parameters.Add("section_id", section_id.Value);
         }
         if (!string.IsNullOrWhiteSpace(search))
         {
-            sql += " AND (u.full_name LIKE @search OR s.roll_number LIKE @search OR u.email LIKE @search)";
+            sql += " AND (u.full_name LIKE @search OR s.student_code LIKE @search OR u.email LIKE @search)";
             parameters.Add("search", $"%{search}%");
         }
 
@@ -69,19 +91,32 @@ public class StudentsController : ControllerBase
         var user = UserContext.FromHttpContext(HttpContext);
         using var conn = _dbFactory.CreateConnection();
         var sql = @"
-            SELECT s.*, u.email, u.full_name, u.phone, u.is_active, c.name AS class_name, sec.name AS section_name
+            SELECT s.*, u.email, u.full_name, u.phone, u.is_active, 
+                   ac.code AS class_name, ac.name AS administrative_class_name
             FROM dbo.students s
             JOIN dbo.users u ON u.id = s.user_id
-            LEFT JOIN dbo.classes c ON c.id = s.class_id
-            LEFT JOIN dbo.sections sec ON sec.id = s.section_id
+            LEFT JOIN dbo.administrative_classes ac ON ac.id = s.administrative_class_id
             WHERE s.id = @id";
 
         var student = await conn.QueryFirstOrDefaultAsync(sql, new { id });
-        if (student == null) return NotFound(new { error = "Không tìm thấy thông tin học sinh" });
+        if (student == null) return NotFound(new { error = "Không tìm thấy thông tin sinh viên" });
 
         if (user.Role == "student" && user.UserId != (int)student.user_id)
         {
             return StatusCode(403, new { error = "Truy cập bị từ chối" });
+        }
+
+        if (user.Role == "teacher" && student.administrative_class_id != null)
+        {
+            var isAllowed = await conn.QueryFirstOrDefaultAsync<int>(@"
+                SELECT COUNT(*) FROM dbo.administrative_classes ac
+                WHERE ac.id = @admin_class_id AND ac.advisor_teacher_id = @teacher_id",
+                new { admin_class_id = (int)student.administrative_class_id, teacher_id = user.UserId });
+
+            if (isAllowed == 0)
+            {
+                return StatusCode(403, new { error = "Truy cập bị từ chối: Bạn không phụ trách sinh viên thuộc lớp này" });
+            }
         }
 
         return Ok(student);
@@ -147,16 +182,15 @@ public class StudentsController : ControllerBase
         var roll = string.IsNullOrWhiteSpace(dto.Roll_Number) ? $"SV{nextId:D3}" : dto.Roll_Number;
 
         var insertStudentSql = @"
-            INSERT INTO dbo.students (user_id, roll_number, class_id, section_id, dob, gender, address, guardian_name, guardian_phone, guardian_email, blood_group)
+            INSERT INTO dbo.students (user_id, roll_number, student_code, administrative_class_id, class_id, dob, gender, address, guardian_name, guardian_phone, guardian_email, blood_group)
             OUTPUT INSERTED.id
-            VALUES (@user_id, @roll, @class_id, @section_id, @dob, @gender, @address, @guardian_name, @guardian_phone, @guardian_email, @blood_group)";
+            VALUES (@user_id, @roll, @roll, @admin_class_id, @admin_class_id, @dob, @gender, @address, @guardian_name, @guardian_phone, @guardian_email, @blood_group)";
 
         var studentId = await conn.QuerySingleAsync<int>(insertStudentSql, new
         {
             user_id = userId,
             roll,
-            class_id = dto.Class_Id,
-            section_id = dto.Section_Id,
+            admin_class_id = dto.Class_Id,
             dob = dto.Dob,
             gender = dto.Gender,
             address = dto.Address,
@@ -206,15 +240,16 @@ public class StudentsController : ControllerBase
 
         await conn.ExecuteAsync(@"
             UPDATE dbo.students SET
-              class_id = COALESCE(@class_id, class_id), section_id = COALESCE(@section_id, section_id), dob = COALESCE(@dob, dob),
+              administrative_class_id = COALESCE(@admin_class_id, administrative_class_id),
+              class_id = COALESCE(@admin_class_id, class_id),
+              dob = COALESCE(@dob, dob),
               gender = COALESCE(@gender, gender), address = COALESCE(@address, address),
               guardian_name = COALESCE(@guardian_name, guardian_name), guardian_phone = COALESCE(@guardian_phone, guardian_phone),
               guardian_email = COALESCE(@guardian_email, guardian_email), blood_group = COALESCE(@blood_group, blood_group)
             WHERE id = @id",
             new
             {
-                class_id = dto.Class_Id,
-                section_id = dto.Section_Id,
+                admin_class_id = dto.Class_Id,
                 dob = dto.Dob,
                 gender = dto.Gender,
                 address = dto.Address,

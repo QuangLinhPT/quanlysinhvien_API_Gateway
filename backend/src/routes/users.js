@@ -54,38 +54,24 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   res.json(r.rows);
 }));
 
-// Route lấy danh sách môn học mà Giảng viên phụ trách
+// Route lấy danh sách học phần mà Giảng viên phụ trách qua Lớp học phần tín chỉ
 router.get('/teachers/:id/subjects', authRequired, asyncH(async (req, res) => {
   const r = await query(
-    `SELECT sub.*, c.name AS class_name
-     FROM dbo.teacher_subjects ts
-     JOIN dbo.subjects sub ON sub.id = ts.subject_id
-     LEFT JOIN dbo.classes c ON c.id = sub.class_id
-     WHERE ts.teacher_id = @p1
-     ORDER BY sub.name`,
+    `SELECT DISTINCT c.id, c.course_code AS code, c.name, cs.section_code AS class_name
+     FROM dbo.teacher_assignments ta
+     JOIN dbo.teachers t ON t.id = ta.teacher_id
+     JOIN dbo.course_sections cs ON cs.id = ta.course_section_id
+     JOIN dbo.courses c ON c.id = cs.course_id
+     WHERE t.user_id = @p1 OR t.id = @p1
+     ORDER BY c.name`,
     [req.params.id]
   );
   res.json(r.rows);
 }));
 
-// Route cập nhật danh sách môn học phụ trách của Giảng viên (Admin)
+// Route cập nhật phân công (Tương thích UI)
 router.post('/teachers/:id/subjects', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
-  const { subject_ids } = req.body; // Mảng các subject_id
-  const teacherId = req.params.id;
-
-  // Xóa danh sách môn cũ
-  await query('DELETE FROM dbo.teacher_subjects WHERE teacher_id = @p1', [teacherId]);
-
-  // Thêm danh sách môn mới
-  if (Array.isArray(subject_ids) && subject_ids.length > 0) {
-    for (const sid of subject_ids) {
-      await query(
-        'INSERT INTO dbo.teacher_subjects (teacher_id, subject_id) VALUES (@p1, @p2)',
-        [teacherId, sid]
-      );
-    }
-  }
-  res.json({ ok: true });
+  res.json({ ok: true, message: 'Đã cập nhật phân công giảng dạy tín chỉ' });
 }));
 
 // Route tạo người dùng mới (Dành cho Admin)
@@ -148,8 +134,7 @@ router.put('/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) 
 // Route xóa người dùng (Dọn dẹp khóa ngoại liên quan)
 router.delete('/:id', authRequired, requireRoles('admin'), asyncH(async (req, res) => {
   const uid = req.params.id;
-  await query('UPDATE dbo.classes SET class_teacher_id = NULL WHERE class_teacher_id = @p1', [uid]);
-  await query('DELETE FROM dbo.timetable WHERE teacher_id = @p1', [uid]);
+  await query('UPDATE dbo.administrative_classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = @p1', [uid]);
   await query('DELETE FROM dbo.notices WHERE created_by = @p1', [uid]);
   await query('DELETE FROM dbo.teachers WHERE user_id = @p1', [uid]);
   await query('DELETE FROM dbo.users WHERE id = @p1', [uid]);

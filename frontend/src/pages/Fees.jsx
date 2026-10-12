@@ -41,11 +41,11 @@ export default function Fees() {
       if (filterStatus && filterStatus !== 'all') q.append('status', filterStatus)
 
       const url = '/fees' + (q.toString() ? `?${q.toString()}` : '')
-      const { data } = await api.get(url)
+      const res = await api.get(url)
       
-      let list = Array.isArray(data) ? data : []
+      let list = Array.isArray(res.data) ? res.data : (res.data?.data || [])
       if (filterClass) {
-        list = list.filter(item => String(item.class_id) === String(filterClass))
+        list = list.filter(item => String(item.class_id || item.administrative_class_id) === String(filterClass))
       }
       setRows(list)
     } catch (e) {
@@ -58,11 +58,11 @@ export default function Fees() {
     if (!isTeacher) {
       if (canEdit) {
         Promise.all([
-          api.get('/classes'),
+          api.get('/academic/administrative-classes'),
           api.get('/students')
         ]).then(([cRes, sRes]) => {
           if (active) {
-            setClasses(cRes.data || [])
+            setClasses(cRes.data?.data || cRes.data || [])
             setStudents(sRes.data || [])
           }
         }).catch(() => {})

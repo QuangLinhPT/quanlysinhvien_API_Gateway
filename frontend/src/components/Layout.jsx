@@ -1,18 +1,31 @@
 import { useState } from 'react'
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LayoutDashboard, Users, GraduationCap, Calendar, ClipboardCheck, Award, Wallet, Megaphone, FileText, ClipboardList, LogOut, Menu, School } from 'lucide-react'
+import {
+  LayoutDashboard, Users, GraduationCap, Calendar, ClipboardCheck,
+  Award, Wallet, Megaphone, FileText, ClipboardList, LogOut, Menu, School,
+  Building2, BookOpen, CheckSquare, MessageSquare, BarChart3
+} from 'lucide-react'
 
+// CẤU HÌNH SIDEBAR NAVIGATION KẾT HỢP CHỨC NĂNG TÍN CHỈ MỚI VÀ GIỮ NGUYÊN CHỨC NĂNG CŨ KHÔNG TRÙNG LẶP
 const NAV = [
   { to: '/app', label: 'Bảng Điều Khiển', icon: LayoutDashboard, roles: ['admin', 'teacher', 'staff', 'student'] },
+
+  // --- CÁC CHỨC NĂNG TÍN CHỈ V2 NÂNG CẤP MỚI ---
+  { to: '/app/academic-management', label: 'Quản Lý Đào Tạo & CTTĐ', icon: Building2, roles: ['admin', 'staff'] },
+  { to: '/app/course-sections', label: 'Lớp HP & Đăng Ký Học', icon: BookOpen, roles: ['admin', 'teacher', 'staff', 'student'] },
+  { to: '/app/grade-management', label: 'Nhập & Duyệt Điểm Tín Chỉ', icon: CheckSquare, roles: ['admin', 'teacher', 'staff'] },
+  { to: '/app/grade-stats', label: 'Thống Kê Điểm', icon: BarChart3, roles: ['admin', 'teacher', 'staff'] },
+  { to: '/app/student-transcript', label: 'Bảng Điểm & GPA Cá Nhân', icon: Award, roles: ['student'] },
+  { to: '/app/grade-appeals', label: 'Đơn Phúc Khảo Điểm', icon: MessageSquare, roles: ['admin', 'staff', 'student'] },
+
+  // --- GIỮ LẠI CÁC CHỨC NĂNG CŨ KHÔNG TRÙNG LẶP ---
   { to: '/app/students', label: 'Quản Lý Sinh Viên', icon: GraduationCap, roles: ['admin', 'teacher', 'staff'] },
   { to: '/app/users', label: 'Giảng Viên & Nhân Viên', icon: Users, roles: ['admin', 'staff'] },
-  { to: '/app/classes', label: 'Lớp Học & Phân Lớp', icon: School, roles: ['admin', 'teacher', 'staff'] },
-  { to: '/app/attendance', label: 'Điểm Danh', icon: ClipboardCheck, roles: ['admin', 'teacher', 'staff', 'student'] },
-  { to: '/app/exams', label: 'Kỳ Thi & Điểm Số', icon: Award, roles: ['admin', 'teacher', 'staff', 'student'] },
-  { to: '/app/fees', label: 'Học Phí', icon: Wallet, roles: ['admin', 'staff', 'student'] },
+  { to: '/app/attendance', label: 'Điểm Danh Hàng Ngày', icon: ClipboardCheck, roles: ['admin', 'teacher', 'staff', 'student'] },
+  { to: '/app/fees', label: 'Học Phí Sinh Viên', icon: Wallet, roles: ['admin', 'staff', 'student'] },
   { to: '/app/notices', label: 'Bảng Thông Báo', icon: Megaphone, roles: ['admin', 'teacher', 'staff', 'student'] },
-  { to: '/app/assignments', label: 'Bài Tập', icon: FileText, roles: ['admin', 'teacher', 'student'] },
+  { to: '/app/assignments', label: 'Bài Tập & Nộp Bài', icon: FileText, roles: ['admin', 'teacher', 'student'] },
   { to: '/app/timetable', label: 'Thời Khóa Biểu', icon: Calendar, roles: ['admin', 'teacher', 'staff', 'student'] },
   { to: '/app/profile', label: 'Hồ Sơ Cá Nhân', icon: ClipboardList, roles: ['admin', 'teacher', 'staff', 'student'] },
 ]
@@ -39,8 +52,8 @@ export default function Layout() {
         <div className="h-16 px-5 flex items-center gap-2 border-b border-slate-100 shrink-0">
           <div className="w-9 h-9 rounded-lg bg-brand-600 text-white grid place-items-center font-bold text-sm">QL</div>
           <div>
-            <div className="font-bold text-slate-800 leading-tight">QLSV</div>
-            <div className="text-[11px] text-slate-500">Quản Lý Sinh Viên</div>
+            <div className="font-bold text-slate-800 leading-tight">QLSV Tín Chỉ</div>
+            <div className="text-[11px] text-slate-500">Quản Lý Đào Tạo & Điểm</div>
           </div>
         </div>
         <nav className="p-3 space-y-1 flex-1 overflow-y-auto scrollbar">

@@ -12,7 +12,7 @@ router.get('/stats', authRequired, asyncH(async (req, res) => {
     const [students, teachers, classes, todayAttendance, pendingFees, notices, assignments] = await Promise.all([
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.students'),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.teachers'),
-      query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.classes'),
+      query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.administrative_classes'),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.attendance WHERE date=CAST(GETDATE() AS DATE)'),
       query(`SELECT CONVERT(int, COUNT(*)) AS n, COALESCE(SUM(due_amount),0) AS total FROM dbo.fees WHERE status<>'paid'`),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.notices'),
@@ -40,9 +40,15 @@ router.get('/stats', authRequired, asyncH(async (req, res) => {
       recent_notices: recentNotices.rows,
     });
   } else if (role === 'teacher') {
+    const teacherClassesSubquery = `
+      SELECT DISTINCT ac.id
+      FROM dbo.administrative_classes ac
+      WHERE ac.advisor_teacher_id = @p1
+         OR ac.id IN (SELECT e.course_section_id FROM dbo.teacher_assignments ta JOIN dbo.course_sections cs ON ta.course_section_id = cs.id JOIN dbo.enrollments e ON e.course_section_id = cs.id WHERE ta.teacher_id = @p1)`;
+
     const [classes, students, assignments, notices] = await Promise.all([
-      query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.classes WHERE class_teacher_id=@p1', [req.user.id]),
-      query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.students s WHERE s.class_id IN (SELECT id FROM dbo.classes WHERE class_teacher_id=@p1)', [req.user.id]),
+      query(`SELECT CONVERT(int, COUNT(*)) AS n FROM (${teacherClassesSubquery}) AS t`, [req.user.id]),
+      query(`SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.students s WHERE s.class_id IN (${teacherClassesSubquery})`, [req.user.id]),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.assignments WHERE teacher_id=@p1', [req.user.id]),
       query('SELECT CONVERT(int, COUNT(*)) AS n FROM dbo.notices WHERE created_by=@p1', [req.user.id]),
     ]);

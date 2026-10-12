@@ -16,11 +16,13 @@ public class AttendanceController : ControllerBase
         _dbFactory = dbFactory;
     }
 
-    // Route truy vấn dữ liệu điểm danh theo lớp, phân đoạn, ngày hoặc học sinh
+    // Route truy vấn dữ liệu điểm danh theo lớp, môn học, phân đoạn, ngày hoặc học sinh
     [HttpGet]
     public async Task<IActionResult> GetAttendance(
         [FromQuery] int? class_id,
         [FromQuery] int? section_id,
+        [FromQuery] int? course_section_id,
+        [FromQuery] int? subject_id,
         [FromQuery] string? date,
         [FromQuery] int? student_id,
         [FromQuery] string? from,
@@ -29,8 +31,10 @@ public class AttendanceController : ControllerBase
         var user = UserContext.FromHttpContext(HttpContext);
         using var conn = _dbFactory.CreateConnection();
 
+        var targetSectionId = course_section_id ?? section_id;
+
         var sql = @"
-            SELECT TOP 2000 a.*, u.full_name AS student_name, s.roll_number
+            SELECT TOP 2000 a.*, u.full_name AS student_name, s.student_code AS roll_number
             FROM dbo.attendance a
             JOIN dbo.students s ON s.id = a.student_id
             JOIN dbo.users u ON u.id = s.user_id
@@ -51,33 +55,18 @@ public class AttendanceController : ControllerBase
             parameters.Add("student_id", student_id.Value);
         }
 
-        if (class_id.HasValue)
+        if (targetSectionId.HasValue)
         {
-            sql += " AND a.class_id = @class_id";
-            parameters.Add("class_id", class_id.Value);
-        }
-        if (section_id.HasValue)
-        {
-            sql += " AND a.section_id = @section_id";
-            parameters.Add("section_id", section_id.Value);
+            sql += " AND a.section_id = @targetSectionId";
+            parameters.Add("targetSectionId", targetSectionId.Value);
         }
         if (!string.IsNullOrWhiteSpace(date))
         {
             sql += " AND a.date = @date";
             parameters.Add("date", date);
         }
-        if (!string.IsNullOrWhiteSpace(from))
-        {
-            sql += " AND a.date >= @from";
-            parameters.Add("from", from);
-        }
-        if (!string.IsNullOrWhiteSpace(to))
-        {
-            sql += " AND a.date <= @to";
-            parameters.Add("to", to);
-        }
 
-        sql += " ORDER BY a.date DESC, s.roll_number";
+        sql += " ORDER BY a.date DESC, s.student_code";
 
         var list = await conn.QueryAsync(sql, parameters);
         return Ok(list);
@@ -98,6 +87,8 @@ public class AttendanceController : ControllerBase
         public List<AttendanceRecordDto> Records { get; set; } = new();
         public int? Class_Id { get; set; }
         public int? Section_Id { get; set; }
+        public int? Course_Section_Id { get; set; }
+        public int? Subject_Id { get; set; }
     }
 
     // Route điểm danh danh sách học sinh (Admin, Teacher, Staff)
@@ -115,6 +106,7 @@ public class AttendanceController : ControllerBase
             return BadRequest(new { error = "Ngày điểm danh và danh sách bản ghi là bắt buộc" });
         }
 
+        int? targetSectionId = dto.Course_Section_Id ?? dto.Section_Id;
         using var conn = _dbFactory.CreateConnection();
         var results = new List<object>();
 
@@ -124,19 +116,18 @@ public class AttendanceController : ControllerBase
 
             var sql = @"
                 MERGE dbo.attendance AS t
-                USING (SELECT @student_id AS student_id, @class_id AS class_id, @section_id AS section_id, @date AS date, @status AS status, @remarks AS remarks, @marked_by AS marked_by) AS s
-                  ON t.student_id = s.student_id AND t.date = s.date
+                USING (SELECT @student_id AS student_id, @section_id AS section_id, @date AS date, @status AS status, @remarks AS remarks, @marked_by AS marked_by) AS s
+                  ON t.student_id = s.student_id AND t.section_id = s.section_id AND t.date = s.date
                 WHEN MATCHED THEN UPDATE SET
                   status = s.status, remarks = s.remarks, marked_by = s.marked_by
-                WHEN NOT MATCHED THEN INSERT (student_id, class_id, section_id, date, status, remarks, marked_by)
-                  VALUES (s.student_id, s.class_id, s.section_id, s.date, s.status, s.remarks, s.marked_by)
+                WHEN NOT MATCHED THEN INSERT (student_id, section_id, date, status, remarks, marked_by)
+                  VALUES (s.student_id, s.section_id, s.date, s.status, s.remarks, s.marked_by)
                 OUTPUT INSERTED.*;";
 
             var row = await conn.QueryFirstOrDefaultAsync(sql, new
             {
                 student_id = rec.Student_Id,
-                class_id = dto.Class_Id,
-                section_id = dto.Section_Id,
+                section_id = targetSectionId,
                 date = dto.Date,
                 status = rec.Status,
                 remarks = rec.Remarks,

@@ -21,9 +21,11 @@ export default function Students() {
       const q = new URLSearchParams()
       if (search) q.set('search', search)
       if (classFilter) q.set('class_id', classFilter)
-      const { data } = await api.get(`/students?${q}`)
-      setRows(data)
+      const res = await api.get(`/students?${q}`)
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || [])
+      setRows(list)
     } catch (e) {
+      toast.error(e.response?.data?.error || e.message || 'Lỗi khi nạp danh sách sinh viên')
       setRows([])
     }
   }
@@ -31,7 +33,7 @@ export default function Students() {
   useEffect(() => {
     Promise.all([
       load(),
-      api.get('/classes').then(r => setClasses(r.data)).catch(() => {})
+      api.get('/academic/administrative-classes').then(r => setClasses(r.data?.data || r.data || [])).catch(() => {})
     ])
   }, [])
 
@@ -68,7 +70,6 @@ export default function Students() {
       <div className="flex items-center flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Quản Lý Sinh Viên</h2>
-          <p className="text-xs text-slate-500">Mẹo: <strong>Nhấp kép chuột (Double-click)</strong> vào bất kỳ dòng nào để xem Hồ sơ Chi tiết</p>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">

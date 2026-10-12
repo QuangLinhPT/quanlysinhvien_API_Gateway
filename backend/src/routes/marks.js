@@ -49,14 +49,17 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   if (exam_id) { params.push(exam_id); conds.push(`m.exam_id=@p${params.length}`); }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
   const r = await query(`
-    SELECT m.*, e.name AS exam_name, e.total_marks, e.is_published, sub.name AS subject_name, u.full_name AS student_name, s.roll_number
+    SELECT TOP 500 m.id, m.student_id, m.exam_id, m.subject_id, m.marks_obtained, m.grade,
+           LEFT(CAST(m.remarks AS NVARCHAR(MAX)), 500) AS remarks,
+           e.name AS exam_name, e.total_marks, e.is_published, sub.name AS subject_name, u.full_name AS student_name, s.roll_number
     FROM dbo.marks m
     JOIN dbo.exams e ON e.id=m.exam_id
     JOIN dbo.subjects sub ON sub.id=m.subject_id
     JOIN dbo.students s ON s.id=m.student_id
     JOIN dbo.users u ON u.id=s.user_id
     ${where}
-    ORDER BY e.exam_date DESC, sub.name`, params);
+    ORDER BY e.exam_date DESC, sub.name
+    OPTION (MAXDOP 1, MAX_GRANT_PERCENT = 5)`, params);
   res.json(r.rows);
 }));
 

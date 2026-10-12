@@ -24,11 +24,11 @@ public class FeesController : ControllerBase
         using var conn = _dbFactory.CreateConnection();
 
         var sql = @"
-            SELECT TOP 1000 f.*, u.full_name AS student_name, s.roll_number, s.class_id, c.name AS class_name
+            SELECT TOP 1000 f.*, u.full_name AS student_name, s.student_code AS roll_number, s.student_code, s.administrative_class_id AS class_id, ac.code AS class_name
             FROM dbo.fees f
             JOIN dbo.students s ON s.id = f.student_id
             JOIN dbo.users u ON u.id = s.user_id
-            LEFT JOIN dbo.classes c ON c.id = s.class_id
+            LEFT JOIN dbo.administrative_classes ac ON ac.id = s.administrative_class_id
             WHERE 1=1";
 
         var parameters = new DynamicParameters();
@@ -49,7 +49,7 @@ public class FeesController : ControllerBase
             }
             if (class_id.HasValue)
             {
-                sql += " AND s.class_id = @class_id";
+                sql += " AND s.administrative_class_id = @class_id";
                 parameters.Add("class_id", class_id.Value);
             }
         }

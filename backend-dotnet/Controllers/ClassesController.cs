@@ -17,41 +17,48 @@ public class ClassesController : ControllerBase
         _dbFactory = dbFactory;
     }
 
-    // Route lấy danh sách tất cả các lớp kèm số lượng học sinh và các phân đoạn (sections)
+    // Route lấy danh sách các lớp thuộc hệ thống (Giảng viên tự động lọc theo lớp phụ trách nếu không chọn all=true)
     [HttpGet]
-    public async Task<IActionResult> GetClasses()
+    public async Task<IActionResult> GetClasses([FromQuery] bool? all)
     {
+        var user = UserContext.FromHttpContext(HttpContext);
         using var conn = _dbFactory.CreateConnection();
+
         var classesSql = @"
-            SELECT c.*, u.full_name AS class_teacher_name,
-                   (SELECT COUNT(*) FROM dbo.students s WHERE s.class_id = c.id) AS student_count
-            FROM dbo.classes c
-            LEFT JOIN dbo.users u ON u.id = c.class_teacher_id
-            ORDER BY c.id";
+            SELECT ac.id, ac.code, ac.name, ac.cohort_id, ac.training_program_id, ac.advisor_teacher_id,
+                   u.full_name AS advisor_name, u.full_name AS class_teacher_name,
+                   ac.advisor_teacher_id AS class_teacher_id,
+                   c.code AS cohort_code, c.name AS cohort_name,
+                   tp.code AS program_code, tp.name AS program_name,
+                   (SELECT COUNT(*) FROM dbo.students s WHERE s.administrative_class_id = ac.id) AS student_count
+            FROM dbo.administrative_classes ac
+            JOIN dbo.cohorts c ON ac.cohort_id = c.id
+            JOIN dbo.training_programs tp ON ac.training_program_id = tp.id
+            LEFT JOIN dbo.users u ON ac.advisor_teacher_id = u.id
+            WHERE 1=1";
 
-        var classes = (await conn.QueryAsync(classesSql)).ToList();
+        var parameters = new DynamicParameters();
 
-        var sectionsSql = "SELECT id, class_id, name FROM dbo.sections ORDER BY id";
-        var sections = (await conn.QueryAsync(sectionsSql)).ToList();
+        if (user.Role == "teacher" && all != true)
+        {
+            classesSql += " AND ac.advisor_teacher_id = @teacher_id";
+            parameters.Add("teacher_id", user.UserId);
+        }
 
-        var sectionsByClass = sections
-            .GroupBy(s => (int)s.class_id)
-            .ToDictionary(g => g.Key, g => g.Select(s => (object)new { id = (int)s.id, name = (string)s.name }).ToList());
+        classesSql += " ORDER BY ac.code ASC";
+
+        var classes = (await conn.QueryAsync(classesSql, parameters)).ToList();
 
         var result = classes.Select(cls =>
         {
-            var cid = (int)cls.id;
-            var secList = sectionsByClass.ContainsKey(cid) ? sectionsByClass[cid] : new List<object>();
             var dict = new Dictionary<string, object?>();
-            
             var row = (IDictionary<string, object>)cls;
             foreach (var kvp in row)
             {
                 dict[kvp.Key] = kvp.Value;
             }
-
             dict["student_count"] = Convert.ToInt32(cls.student_count ?? 0);
-            dict["sections"] = secList;
+            dict["sections"] = new List<object>();
             return dict;
         });
 
@@ -99,20 +106,20 @@ public class ClassesController : ControllerBase
     public async Task<IActionResult> UpdateClass(int id, [FromBody] CreateClassDto dto)
     {
         var user = UserContext.FromHttpContext(HttpContext);
-        if (user.Role != "admin") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
+        if (user.Role != "admin" && user.Role != "staff") return StatusCode(403, new { error = "Truy cập bị từ chối: Không đủ quyền hạn" });
 
         using var conn = _dbFactory.CreateConnection();
         var sql = @"
             UPDATE dbo.classes SET
                 name = COALESCE(@name, name),
                 academic_year = COALESCE(@academic_year, academic_year),
-                class_teacher_id = COALESCE(@class_teacher_id, class_teacher_id)
+                class_teacher_id = @class_teacher_id
             WHERE id = @id";
 
         await conn.ExecuteAsync(sql, new
         {
-            name = dto.Name,
-            academic_year = dto.Academic_Year,
+            name = string.IsNullOrWhiteSpace(dto.Name) ? null : dto.Name,
+            academic_year = string.IsNullOrWhiteSpace(dto.Academic_Year) ? null : dto.Academic_Year,
             class_teacher_id = dto.Class_Teacher_Id,
             id
         });
@@ -176,12 +183,31 @@ public class ClassesController : ControllerBase
         return Ok(new { ok = true });
     }
 
-    // Route lấy danh sách môn học của lớp
+    // Route lấy danh sách môn học của lớp (lọc theo giáo viên nếu là giảng viên)
     [HttpGet("{id:int}/subjects")]
     public async Task<IActionResult> GetSubjects(int id)
     {
+        var user = UserContext.FromHttpContext(HttpContext);
         using var conn = _dbFactory.CreateConnection();
-        var subjects = await conn.QueryAsync("SELECT * FROM dbo.subjects WHERE class_id = @id ORDER BY name", new { id });
+
+        if (user.Role == "teacher")
+        {
+            string teacherSubSql = @"
+                SELECT DISTINCT s.* 
+                FROM dbo.subjects s
+                WHERE (s.class_id = @id OR s.class_id IS NULL)
+                  AND (
+                      s.id IN (SELECT subject_id FROM dbo.teacher_subjects WHERE teacher_id = @teacher_id)
+                   OR s.id IN (SELECT subject_id FROM dbo.timetable WHERE teacher_id = @teacher_id AND class_id = @id AND subject_id IS NOT NULL)
+                  )
+                ORDER BY s.name";
+
+            var teacherSubs = await conn.QueryAsync(teacherSubSql, new { id, teacher_id = user.UserId });
+            return Ok(teacherSubs);
+        }
+
+        string sql = "SELECT * FROM dbo.subjects WHERE (class_id = @id OR class_id IS NULL) ORDER BY name";
+        var subjects = await conn.QueryAsync(sql, new { id });
         return Ok(subjects);
     }
 

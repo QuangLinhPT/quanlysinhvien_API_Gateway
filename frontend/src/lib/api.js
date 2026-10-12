@@ -1,6 +1,8 @@
 // Cấu hình Axios instance để thực hiện các cuộc gọi API tới Gateway
 import axios from 'axios'
-const api = axios.create({ baseURL: '/api' })
+// Timeout 30s: request kẹt (DB treo...) tự ngắt thay vì quay spinner mãi.
+// Upload file dùng timeout riêng 120s ở từng call site (không áp timeout chung).
+const api = axios.create({ baseURL: '/api', timeout: 30000 })
 
 // Interceptor đính kèm Token JWT vào Header authorization trước khi gửi request
 api.interceptors.request.use((c) => {

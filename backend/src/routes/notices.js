@@ -11,8 +11,8 @@ router.get('/', authRequired, asyncH(async (req, res) => {
   let where = `WHERE (n.target_role='all' OR n.target_role=@p1)`;
   const params = [role];
   if (role === 'student') {
-    const s = await query('SELECT class_id FROM dbo.students WHERE user_id=@p1', [req.user.id]);
-    const cid = s.rows[0]?.class_id;
+    const s = await query('SELECT administrative_class_id FROM dbo.students WHERE user_id=@p1', [req.user.id]);
+    const cid = s.rows[0]?.administrative_class_id;
     if (cid) {
       params[0] = role;
       params.push(cid);
@@ -20,12 +20,16 @@ router.get('/', authRequired, asyncH(async (req, res) => {
     }
   }
   const r = await query(`
-    SELECT TOP 200 n.*, u.full_name AS author_name, c.name AS target_class_name
+    SELECT TOP 100 n.id, n.title,
+           LEFT(CAST(n.description AS NVARCHAR(MAX)), 500) AS description,
+           n.priority, n.target_role, n.target_class_id, n.created_by, n.created_at,
+           u.full_name AS author_name, ac.code AS target_class_name
     FROM dbo.notices n
     LEFT JOIN dbo.users u ON u.id=n.created_by
-    LEFT JOIN dbo.classes c ON c.id=n.target_class_id
+    LEFT JOIN dbo.administrative_classes ac ON ac.id=n.target_class_id
     ${where}
-    ORDER BY n.created_at DESC`, params);
+    ORDER BY n.created_at DESC
+    OPTION (MAXDOP 1, MAX_GRANT_PERCENT = 5)`, params);
   res.json(r.rows);
 }));
 

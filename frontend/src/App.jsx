@@ -9,14 +9,20 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
 import UsersPage from './pages/UsersPage'
-import Classes from './pages/Classes'
 import Attendance from './pages/Attendance'
-import Exams from './pages/Exams'
 import Fees from './pages/Fees'
 import Notices from './pages/Notices'
 import Assignments from './pages/Assignments'
 import Timetable from './pages/Timetable'
 import Profile from './pages/Profile'
+
+// Các trang chức năng Tín chỉ v2 mới nâng cấp
+import AcademicManagement from './pages/AcademicManagement'
+import CourseSections from './pages/CourseSections'
+import GradeManagement from './pages/GradeManagement'
+import StudentTranscript from './pages/StudentTranscript'
+import GradeAppealsPage from './pages/GradeAppealsPage'
+import GradeStatsPage from './pages/GradeStatsPage'
 
 // Component bảo vệ các Route yêu cầu xác thực người dùng
 function Protected({ children }) {
@@ -38,11 +44,19 @@ export default function App() {
           {/* Các trang nội bộ yêu cầu đăng nhập */}
           <Route path="/app" element={<Protected><Layout /></Protected>}>
             <Route index element={<Dashboard />} />
+
+            {/* Các Tuyến Đường Chức Năng Tín Chỉ V2 Mới */}
+            <Route path="academic-management" element={<AcademicManagement />} />
+            <Route path="course-sections" element={<CourseSections />} />
+            <Route path="grade-management" element={<GradeManagement />} />
+            <Route path="grade-stats" element={<GradeStatsPage />} />
+            <Route path="student-transcript" element={<StudentTranscript />} />
+            <Route path="grade-appeals" element={<GradeAppealsPage />} />
+
+            {/* Giữ lại các Tuyến Đường Chức Năng Cũ Không Trùng Lặp */}
             <Route path="students" element={<Students />} />
             <Route path="users" element={<UsersPage />} />
-            <Route path="classes" element={<Classes />} />
             <Route path="attendance" element={<Attendance />} />
-            <Route path="exams" element={<Exams />} />
             <Route path="fees" element={<Fees />} />
             <Route path="notices" element={<Notices />} />
             <Route path="assignments" element={<Assignments />} />

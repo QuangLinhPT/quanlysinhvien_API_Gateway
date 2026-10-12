@@ -78,10 +78,9 @@ router.get('/me', authRequired, asyncH(async (req, res) => {
   const u = r.rows[0];
   let extra = {};
   if (u.role === 'student') {
-    const s = await query(`SELECT s.*, c.name AS class_name, sec.name AS section_name
+    const s = await query(`SELECT s.*, ac.code AS class_name, ac.name AS administrative_class_name
       FROM dbo.students s
-      LEFT JOIN dbo.classes c ON c.id = s.class_id
-      LEFT JOIN dbo.sections sec ON sec.id = s.section_id
+      LEFT JOIN dbo.administrative_classes ac ON ac.id = s.administrative_class_id
       WHERE s.user_id=@p1`, [u.id]);
     extra = { student: s.rows[0] || null };
   } else if (u.role === 'teacher') {

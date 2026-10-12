@@ -8,8 +8,8 @@ const DOTNET_API_URL = process.env.DOTNET_API_URL || 'http://localhost:5000';
 // HTTP Keep-Alive Agent giúp tái sử dụng kết nối socket giữa Node.js và .NET Core (Tăng tốc 80%)
 const agent = new http.Agent({ keepAlive: true, maxSockets: 50, timeout: 5000 });
 
-// Hàm proxy chuyển tiếp request từ Node.js Gateway tới backend .NET Core
-async function proxyToDotnet(req, res) {
+// Hàm proxy chuyển tiếp request từ Node.js Gateway tới backend .NET Core với cơ chế Fallback
+async function proxyToDotnet(req, res, next) {
   try {
     const url = `${DOTNET_API_URL}${req.originalUrl}`;
     const headers = {};
@@ -27,7 +27,7 @@ async function proxyToDotnet(req, res) {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout max
+    const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout cho microservice local
 
     const options = {
       method: req.method,
@@ -44,8 +44,13 @@ async function proxyToDotnet(req, res) {
     // Thực hiện cuộc gọi HTTP tới .NET Core Microservice
     const response = await fetch(url, options);
     clearTimeout(timeout);
-    const contentType = response.headers.get('content-type') || '';
 
+    // Nếu .NET Core phản hồi lỗi 502/503 hoặc 404 route, fallback sang Node.js
+    if (response.status === 502 || response.status === 503) {
+      if (typeof next === 'function') return next();
+    }
+
+    const contentType = response.headers.get('content-type') || '';
     res.status(response.status);
 
     if (contentType.includes('application/json')) {
@@ -56,7 +61,10 @@ async function proxyToDotnet(req, res) {
       return res.send(text);
     }
   } catch (error) {
-    console.error('Lỗi API Gateway Proxy kết nối tới .NET Core:', error.message);
+    // Nếu kết nối tới .NET Core thất bại (Service offline), tự động Fallback sang Node.js Handler
+    if (typeof next === 'function') {
+      return next();
+    }
     return res.status(502).json({
       error: 'API Gateway Error: Không thể kết nối tới Dịch vụ .NET Core (Port 5000)',
       details: error.message

@@ -5,7 +5,7 @@ const { asyncH } = require('../utils/helpers');
 const router = express.Router();
 
 router.get('/', authRequired, asyncH(async (req, res) => {
-  const { student_id, status } = req.query;
+  const { student_id, class_id, status } = req.query;
   const conds = [];
   const params = [];
   if (req.user.role === 'student') {
@@ -13,14 +13,19 @@ router.get('/', authRequired, asyncH(async (req, res) => {
     if (!s.rows.length) return res.json([]);
     params.push(s.rows[0].id); conds.push(`f.student_id=@p${params.length}`);
   } else if (student_id) { params.push(student_id); conds.push(`f.student_id=@p${params.length}`); }
-  if (status) { params.push(status); conds.push(`f.status=@p${params.length}`); }
+  if (class_id) { params.push(class_id); conds.push(`s.administrative_class_id=@p${params.length}`); }
+  if (status && status !== 'all') { params.push(status); conds.push(`f.status=@p${params.length}`); }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
   const r = await query(`
-    SELECT TOP 1000 f.*, u.full_name AS student_name, s.roll_number, c.name AS class_name
+    SELECT TOP 500 f.id, f.student_id, f.total_amount, f.paid_amount, f.due_amount, f.status,
+           f.payment_date, f.receipt_number, f.academic_year,
+           LEFT(CAST(f.description AS NVARCHAR(MAX)), 200) AS description,
+           f.created_at,
+           u.full_name AS student_name, s.student_code AS roll_number, s.administrative_class_id AS class_id, ac.code AS class_name
     FROM dbo.fees f
     JOIN dbo.students s ON s.id=f.student_id
     JOIN dbo.users u ON u.id=s.user_id
-    LEFT JOIN dbo.classes c ON c.id=s.class_id
+    LEFT JOIN dbo.administrative_classes ac ON ac.id=s.administrative_class_id
     ${where}
     ORDER BY f.created_at DESC`, params);
   res.json(r.rows);

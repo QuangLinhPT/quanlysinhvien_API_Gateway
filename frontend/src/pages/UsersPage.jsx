@@ -64,7 +64,6 @@ export default function UsersPage() {
       <div className="flex items-center flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Giảng Viên & Nhân Viên</h2>
-          <p className="text-xs text-slate-500">Mẹo: <strong>Nhấp kép chuột (Double-click)</strong> vào bất kỳ dòng nào để xem Hồ sơ Chi tiết</p>
         </div>
 
         <div className="ml-auto flex items-center flex-wrap gap-2">
@@ -422,7 +421,7 @@ function AssignSubjectsModal({ teacher, onClose }) {
 
   useEffect(() => {
     Promise.all([
-      api.get('/classes').then(r => setClasses(r.data || [])).catch(() => {}),
+      api.get('/academic/administrative-classes').then(r => setClasses(r.data?.data || r.data || [])).catch(() => {}),
       api.get(`/users/teachers/${teacher.id}/subjects`).then(r => setAssignedSubjectIds(r.data.map(s => s.id))).catch(() => {})
     ])
   }, [teacher.id])

@@ -12,21 +12,19 @@ if (fs.existsSync(envPath)) {
 const { query } = require('./src/db/pool');
 
 /**
- * seed_large_v3.js — BỘ DỮ LIỆU MẪU CHUẨN HÓA TOÀN DIỆN V4
+ * seed_large_v3.js — BỘ DỮ LIỆU MẪU CHUẨN HÓA TOÀN DIỆN V5
  * 
- * RÀNG BUỘC CHẶT CHẼ 100%:
- * 1. KHÔNG TRÙNG LỊCH HỌC / LỊCH DẠY:
- *    - Tại cùng một thời điểm (Thứ + Khung Tiết), mỗi Giảng viên chỉ dạy DUY NHẤT 1 Lớp học phần.
- *    - Tại cùng một thời điểm, mỗi Phòng học chỉ phục vụ DUY NHẤT 1 Lớp học phần.
- *    - Sinh viên của một Lớp hành chính không bị trùng lịch học giữa các môn trong cùng một học kỳ.
- * 2. PHÂN KHOA, BỘ MÔN & GIÁO VIÊN CHỦ NHIỆM (CỐ VẤN HỌC TẬP):
- *    - Giảng viên thuộc đúng Khoa chuyên môn và chỉ dạy các môn thuộc Khoa đó.
- *    - Cố vấn học tập của Lớp hành chính thuộc đúng Khoa quản lý lớp đó.
- * 3. RÀNG BUỘC ĐĂNG KÝ HỌC PHẦN & ĐIỂM SỐ:
- *    - Sinh viên lớp hành chính đăng ký đầy đủ các môn học theo Khung chương trình đào tạo.
- *    - Hỗ trợ xem thống kê điểm 1 môn của 1 lớp cụ thể (vd: Môn Cơ sở dữ liệu của Lớp CNTT K18A có đủ 100% sinh viên của lớp đó).
- *    - Phổ điểm thực tế đa dạng: Có điểm A, B, C, D, điểm liệt F (< 5.0), điểm thi lại L2 đỗ, và thi lại L2 không đạt.
- * 4. TIỆN ÍCH ĐỒNG BỘ: Điểm danh (attendance), Bài tập & Bài nộp (assignments/submissions), Học phí (fees), Thông báo (notices).
+ * NGUYÊN TẮC HỌC VỤ BẮT BUỘC:
+ * 1. MỖI MÔN HỌC CHỈ HỌC ĐÚNG 1 LẦN DUY NHẤT:
+ *    - Mỗi môn học (CS101, CS102...) chỉ được mở tại ĐÚNG 1 HỌC KỲ trong toàn bộ tiến trình đào tạo.
+ *    - Mỗi sinh viên đối với 1 môn học chỉ có ĐÚNG 1 BẢN GHI ĐIỂM DUY NHẤT trong toàn bộ cơ sở dữ liệu.
+ * 2. KHÔNG TRÙNG LỊCH HỌC / LỊCH DẠY (Zero Collision):
+ *    - Cùng một thời điểm (Thứ + Khung Tiết), mỗi Giảng viên chỉ dạy DUY NHẤT 1 Lớp học phần.
+ *    - Cùng một thời điểm, mỗi Phòng học chỉ phục vụ DUY NHẤT 1 Lớp học phần.
+ *    - Sinh viên của một Lớp hành chính không bị trùng giờ giữa các môn học.
+ * 3. RÀNG BUỘC CHẶT CHẼ:
+ *    - Giảng viên trực thuộc đúng Khoa chuyên môn và Cố vấn học tập của Lớp hành chính thuộc đúng Khoa đó.
+ *    - Đăng ký môn học theo đúng Khung CTTĐ của ngành.
  */
 
 async function hasColumn(table, column) {
@@ -57,7 +55,7 @@ async function getIdByCode(table, codeCol, code) {
 (async () => {
   try {
     console.log('================================================================');
-    console.log('   BẮT ĐẦU SEED V4: DỮ LIỆU MẪU CHUẨN HÓA 100% - KHÔNG TRÙNG LỊCH');
+    console.log('   BẮT ĐẦU SEED V5: MỖI MÔN HỌC CHỈ HỌC 1 LẦN DUY NHẤT TRONG TOÀN KHÓA');
     console.log('================================================================\n');
 
     const hasStudentsClassId = await hasColumn('students', 'class_id');
@@ -198,8 +196,6 @@ async function getIdByCode(table, codeCol, code) {
       const email = `sinhvien${i}@qlsv.edu.vn`;
       const code = 'SV' + String(i).padStart(3, '0');
       const name = `${lastNames[i % lastNames.length]} ${midNames[i % midNames.length]} ${firstNames[i % firstNames.length]} ${i}`;
-      // Phân bổ đều vào 6 lớp hành chính:
-      // i: 1-20 -> CNTT-K18A; 21-40 -> CNTT-K18B; 41-55 -> CNTT-K18C; 56-70 -> ATTT-K18A; 71-85 -> KTCD-K18A; 86-100 -> QTKD-K18A
       let clsCode = 'CNTT-K18A';
       if (i > 85) clsCode = 'QTKD-K18A';
       else if (i > 70) clsCode = 'KTCD-K18A';
@@ -227,7 +223,7 @@ async function getIdByCode(table, codeCol, code) {
     }
     console.log(`- Đã khởi tạo 100 Sinh viên biên chế đều vào các Lớp hành chính.`);
 
-    // 8. Danh mục Môn học (Courses)
+    // 8. Danh mục Môn học (Courses) — Tên chuẩn hóa rõ ràng môn 1, môn 2
     const courseSeeds = [
       ['CS101', 'Cơ Sở Dữ Liệu', 3, deptMap.CNTT],
       ['MA201', 'Toán Rời Rạc', 3, deptMap.CNTT],
@@ -243,7 +239,7 @@ async function getIdByCode(table, codeCol, code) {
     const courseMap = {};
     for (const [code, name, cred, dId] of courseSeeds) {
       await query(`IF NOT EXISTS (SELECT 1 FROM dbo.courses WHERE course_code=@p1) INSERT INTO dbo.courses (course_code, name, credits, course_type, department_id) VALUES (@p1, @p2, @p3, 'COMPULSORY', @p4)`, [code, name, cred, dId]);
-      await query(`UPDATE dbo.courses SET department_id=@p1 WHERE course_code=@p2`, [dId, code]);
+      await query(`UPDATE dbo.courses SET name=@p1, department_id=@p2 WHERE course_code=@p3`, [name, dId, code]);
       courseMap[code] = await getIdByCode('courses', 'course_code', code);
     }
 
@@ -269,69 +265,64 @@ async function getIdByCode(table, codeCol, code) {
     const semHK2_25 = semMap['2025_2026_HK2'];
     const semHK1_26 = semMap['2026_2027_HK1'];
 
-    // 10. MA TRẬN LỚP HỌC PHẦN & LỊCH HỌC TUYỆT ĐỐI KHÔNG TRÙNG (Zero Collision)
-    // Phân bổ Thứ, Ca (Tiết đơn / Tiết gộp), Phòng học và Giảng viên riêng biệt:
-    const sectionSeeds = [
-      // --- HỌC KỲ 1 (2025-2026) ---
-      // CS101: Thứ Hai Tiết 1-2 (07:00 - 08:35), Phòng A201, GV001
-      { cCode: 'CS101', sCode: 'CS101-01_25HK1', sem: semHK1_25, ti: 0, room: 'Phòng A201', sched: 'Thứ Hai (Tiết 1-2: 07:00 - 08:35)', status: 'COMPLETED' },
-      // MA201: Thứ Hai Tiết 3-4 (08:40 - 10:20), Phòng A201 (Cùng phòng nhưng ca sau), GV005
-      { cCode: 'MA201', sCode: 'MA201-01_25HK1', sem: semHK1_25, ti: 5, room: 'Phòng A201', sched: 'Thứ Hai (Tiết 3-4: 08:40 - 10:20)', status: 'COMPLETED' },
-      // EN201: Thứ Ba Tiết 1-2 (07:00 - 08:35), Phòng A202, GV006
-      { cCode: 'EN201', sCode: 'EN201-01_25HK1', sem: semHK1_25, ti: 6, room: 'Phòng A202', sched: 'Thứ Ba (Tiết 1-2: 07:00 - 08:35)', status: 'COMPLETED' },
+    // 10. MA TRẬN LỚP HỌC PHẦN DUY NHẤT — MỖI MÔN CHỈ MỞ TẠI ĐÚNG 1 HỌC KỲ TRONG TOÀN KHÓA!
+    // Tuyệt đối không mở CS101 ở nhiều kỳ khác nhau.
+    const uniqueSectionSeeds = [
+      // HK1 (2025-2026): Chỉ học CS101, MA201, EN201
+      { cCode: 'CS101', sCode: 'LHP-CS101-01', sem: semHK1_25, ti: 0, room: 'Phòng A201', sched: 'Thứ Hai (Tiết 1-2: 07:00 - 08:35)', status: 'COMPLETED' },
+      { cCode: 'MA201', sCode: 'LHP-MA201-01', sem: semHK1_25, ti: 5, room: 'Phòng A201', sched: 'Thứ Hai (Tiết 3-4: 08:40 - 10:20)', status: 'COMPLETED' },
+      { cCode: 'EN201', sCode: 'LHP-EN201-01', sem: semHK1_25, ti: 6, room: 'Phòng A202', sched: 'Thứ Ba (Tiết 1-2: 07:00 - 08:35)', status: 'COMPLETED' },
 
-      // --- HỌC KỲ 2 (2025-2026) ---
-      // CS102: Thứ Ba Tiết 7-8 (13:00 - 14:35), Phòng Lab CNTT 1, GV002
-      { cCode: 'CS102', sCode: 'CS102-01_25HK2', sem: semHK2_25, ti: 1, room: 'Phòng Lab CNTT 1', sched: 'Thứ Ba (Tiết 7-8: 13:00 - 14:35)', status: 'COMPLETED' },
-      // CS103: Thứ Tư Tiết 1-3 (07:00 - 09:25), Phòng B101, GV003
-      { cCode: 'CS103', sCode: 'CS103-01_25HK2', sem: semHK2_25, ti: 2, room: 'Phòng B101', sched: 'Thứ Tư (Tiết 1-3: 07:00 - 09:25)', status: 'COMPLETED' },
+      // HK2 (2025-2026): Chỉ học CS102, CS103
+      { cCode: 'CS102', sCode: 'LHP-CS102-01', sem: semHK2_25, ti: 1, room: 'Phòng Lab CNTT 1', sched: 'Thứ Ba (Tiết 7-8: 13:00 - 14:35)', status: 'COMPLETED' },
+      { cCode: 'CS103', sCode: 'LHP-CS103-01', sem: semHK2_25, ti: 2, room: 'Phòng B101', sched: 'Thứ Tư (Tiết 1-3: 07:00 - 09:25)', status: 'COMPLETED' },
 
-      // --- HỌC KỲ 1 (2026-2027) ĐANG DIỄN RA ---
-      // CS104: Thứ Năm Tiết 1-2 (07:00 - 08:35), Phòng B102, GV004
-      { cCode: 'CS104', sCode: 'CS104-01_26HK1', sem: semHK1_26, ti: 4, room: 'Phòng B102', sched: 'Thứ Năm (Tiết 1-2: 07:00 - 08:35)', status: 'IN_PROGRESS' },
-      // CS105: Thứ Sáu Tiết 7-8 (13:00 - 14:35), Phòng Lab CNTT 2, GV003
-      { cCode: 'CS105', sCode: 'CS105-01_26HK1', sem: semHK1_26, ti: 3, room: 'Phòng Lab CNTT 2', sched: 'Thứ Sáu (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
-      // KT201: Thứ Tư Tiết 7-8 (13:00 - 14:35), Phòng C301, GV008
-      { cCode: 'KT201', sCode: 'KT201-01_26HK1', sem: semHK1_26, ti: 7, room: 'Phòng C301', sched: 'Thứ Tư (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
-      // QT201: Thứ Năm Tiết 7-8 (13:00 - 14:35), Phòng C302, GV009
-      { cCode: 'QT201', sCode: 'QT201-01_26HK1', sem: semHK1_26, ti: 8, room: 'Phòng C302', sched: 'Thứ Năm (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
+      // HK1 (2026-2027): Học CS104, CS105 (CNTT) và KT201, QT201 (Kinh tế)
+      { cCode: 'CS104', sCode: 'LHP-CS104-01', sem: semHK1_26, ti: 4, room: 'Phòng B102', sched: 'Thứ Năm (Tiết 1-2: 07:00 - 08:35)', status: 'IN_PROGRESS' },
+      { cCode: 'CS105', sCode: 'LHP-CS105-01', sem: semHK1_26, ti: 3, room: 'Phòng Lab CNTT 2', sched: 'Thứ Sáu (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
+      { cCode: 'KT201', sCode: 'LHP-KT201-01', sem: semHK1_26, ti: 7, room: 'Phòng C301', sched: 'Thứ Tư (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
+      { cCode: 'QT201', sCode: 'LHP-QT201-01', sem: semHK1_26, ti: 8, room: 'Phòng C302', sched: 'Thứ Năm (Tiết 7-8: 13:00 - 14:35)', status: 'OPEN' },
     ];
 
+    // XÓA SẠCH CÁC BẢN GHI ĐĂNG KÝ VÀ LHP CŨ TRÙNG MÔN ĐỂ LÀM SẠCH 100% CSDL
+    console.log('- Đang làm sạch dữ liệu đăng ký và điểm cũ để chống trùng lặp môn...');
+    await query('DELETE FROM dbo.attendance');
+    await query('DELETE FROM dbo.submissions');
+    await query('DELETE FROM dbo.assignments');
+    await query('DELETE FROM dbo.grade_appeals');
+    await query('DELETE FROM dbo.grade_histories');
+    await query('DELETE FROM dbo.grade_records');
+    await query('DELETE FROM dbo.enrollments');
+    await query('DELETE FROM dbo.teacher_assignments');
+    await query('DELETE FROM dbo.course_sections');
+
     const sectionObjs = [];
-    for (const s of sectionSeeds) {
-      await query(
-        `IF NOT EXISTS (SELECT 1 FROM dbo.course_sections WHERE section_code=@p1 AND semester_id=@p2)
-         BEGIN INSERT INTO dbo.course_sections (section_code, course_id, semester_id, grade_policy_id, max_students, room, schedule, status)
-         VALUES (@p1, @p3, @p2, @p4, 100, @p5, @p6, @p7); END
-         ELSE BEGIN UPDATE dbo.course_sections SET room=@p5, schedule=@p6, status=@p7 WHERE section_code=@p1 AND semester_id=@p2; END`,
-        [s.sCode, s.sem, courseMap[s.cCode], defaultPolicyId, s.room, s.sched, s.status]
+    for (const s of uniqueSectionSeeds) {
+      const insSec = await query(
+        `INSERT INTO dbo.course_sections (section_code, course_id, semester_id, grade_policy_id, max_students, room, schedule, status)
+         OUTPUT INSERTED.id VALUES (@p1, @p2, @p3, @p4, 100, @p5, @p6, @p7)`,
+        [s.sCode, courseMap[s.cCode], s.sem, defaultPolicyId, s.room, s.sched, s.status]
       );
-      const r = await query('SELECT id FROM dbo.course_sections WHERE section_code=@p1 AND semester_id=@p2', [s.sCode, s.sem]);
-      const secId = r.rows[0].id;
+      const secId = insSec.rows[0].id;
       const t = teacherObjs[s.ti];
-      // Cập nhật phân công giảng viên chính cho LHP (xóa cũ nếu có để tránh vi phạm uq_ta_teacher_section)
-      await query(`DELETE FROM dbo.teacher_assignments WHERE course_section_id=@p1`, [secId]);
       await query(
         `INSERT INTO dbo.teacher_assignments (teacher_id, course_section_id, assignment_role) VALUES (@p1, @p2, 'PRIMARY')`,
         [t.tid, secId]
       );
-      sectionObjs.push({ id: secId, code: s.sCode, semId: s.sem, courseCode: s.cCode, status: s.status });
+      sectionObjs.push({ id: secId, code: s.sCode, semId: s.sem, courseId: courseMap[s.cCode], courseCode: s.cCode, status: s.status });
     }
-    console.log(`- Đã khởi tạo ${sectionObjs.length} Lớp học phần: Khung tiết chuẩn, không trùng phòng, không trùng lịch giảng viên.`);
+    console.log(`- Đã tạo ${sectionObjs.length} Lớp học phần: Mỗi môn đúng 1 LHP, tuyệt đối không trùng lặp môn ở các kỳ.`);
 
-    // 11. Đăng ký Học phần & Bảng điểm (Đồng bộ theo Lớp Hành Chính & Khung CTTĐ)
+    // 11. Đăng ký Học phần & Bảng điểm: MỖI SINH VIÊN CHỈ HỌC ĐÚNG 1 BẢN GHI / 1 MÔN DUY NHẤT!
     let totalEnrolls = 0;
     for (let i = 0; i < studentObjs.length; i++) {
       const st = studentObjs[i];
 
-      // Đăng ký môn theo khối ngành:
+      // Phân bổ các môn theo đúng ngành học:
       // Sinh viên CNTT (Lớp CNTT-K18A, B, C và ATTT):
-      // - HK1 25-26: Học CS101, MA201, EN201
-      // - HK2 25-26: Học CS102, CS103
-      // - HK1 26-27: Học CS104, CS105
+      // - CS101 (Cơ Sở Dữ Liệu), MA201 (Toán Rời Rạc), EN201 (Tiếng Anh CN), CS102 (Java OOP), CS103 (Mạng MT), CS104 (Thiết Kế PM), CS105 (An Ninh HT)
       // Sinh viên Kinh tế (Lớp KTCD và QTKD):
-      // - HK1 25-26: Học MA201, EN201
-      // - HK1 26-27: Học KT201, QT201
+      // - MA201, EN201, KT201 (Nguyên Lý Kế Toán), QT201 (Quản Trị Học)
       let targetSections = [];
       if (st.adminClassCode.startsWith('CNTT') || st.adminClassCode.startsWith('ATTT')) {
         targetSections = [sectionObjs[0], sectionObjs[1], sectionObjs[2], sectionObjs[3], sectionObjs[4], sectionObjs[5], sectionObjs[6]];
@@ -341,19 +332,14 @@ async function getIdByCode(table, codeCol, code) {
 
       for (let sIdx = 0; sIdx < targetSections.length; sIdx++) {
         const sec = targetSections[sIdx];
-        let enrId;
-        const dup = await query('SELECT id FROM dbo.enrollments WHERE student_id=@p1 AND course_section_id=@p2', [st.sid, sec.id]);
-        if (!dup.rows.length) {
-          const enrIns = await query(
-            `INSERT INTO dbo.enrollments (student_id, course_section_id, attempt_type, attempt_number) OUTPUT INSERTED.id
-             VALUES (@p1, @p2, 'FIRST_ATTEMPT', 1)`,
-            [st.sid, sec.id]
-          );
-          enrId = enrIns.rows[0].id;
-          totalEnrolls++;
-        } else {
-          enrId = dup.rows[0].id;
-        }
+
+        const enrIns = await query(
+          `INSERT INTO dbo.enrollments (student_id, course_section_id, attempt_type, attempt_number) OUTPUT INSERTED.id
+           VALUES (@p1, @p2, 'FIRST_ATTEMPT', 1)`,
+          [st.sid, sec.id]
+        );
+        const enrId = enrIns.rows[0].id;
+        totalEnrolls++;
 
         // Tạo điểm số thực tế có tính đa dạng & phân loại:
         // Đảm bảo môn CS101 (Cơ sở dữ liệu) của lớp CNTT-K18A có đầy đủ cả A, B, C, D, F và thi lại L2:
@@ -372,7 +358,7 @@ async function getIdByCode(table, codeCol, code) {
           // Thi L1 trượt (4.0 < 5.0) -> Thi lại L2 đỗ (7.5) -> ĐẠT PASS (resit_exam_score)
           att = 8.5; cont = 8.0; finL1 = 4.0; resitL2 = 7.5;
         } else if (i % 8 === 6) {
-          // Thi L1 trượt (3.0) -> Thi L2 vẫn trượt (4.0) -> TRƯỢT HỌC LẠI
+          // Thi L1 trượt (3.0) -> Thi lại L2 vẫn trượt (4.0) -> TRƯỢT HỌC LẠI
           att = 7.0; cont = 6.0; finL1 = 3.0; resitL2 = 4.0;
         } else {
           // Trượt thẳng L1 (4.5 < 5.0), chưa thi L2 -> TRƯỢT (F)
@@ -397,71 +383,46 @@ async function getIdByCode(table, codeCol, code) {
           else if (total >= 5.0) letter = 'D';
         }
 
-        const grExists = await query('SELECT id FROM dbo.grade_records WHERE enrollment_id=@p1', [enrId]);
-        if (!grExists.rows.length) {
-          await query(
-            `INSERT INTO dbo.grade_records (enrollment_id, attendance_score, continuous_score, final_exam_score, resit_exam_score, total_score, letter_grade, is_passed, status, entered_by)
-             VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)`,
-            [enrId, att, cont, finL1, resitL2, total, letter, passed ? 1 : 0, sec.status === 'COMPLETED' ? 'LOCKED' : 'PUBLISHED', adminId]
-          );
-        } else {
-          // Luôn cập nhật điểm mới chuẩn hóa theo kịch bản Seed V4
-          await query(
-            `UPDATE dbo.grade_records
-             SET attendance_score=@p2, continuous_score=@p3, final_exam_score=@p4, resit_exam_score=@p5,
-                 total_score=@p6, letter_grade=@p7, is_passed=@p8, status=@p9, entered_by=@p10
-             WHERE enrollment_id=@p1`,
-            [enrId, att, cont, finL1, resitL2, total, letter, passed ? 1 : 0, sec.status === 'COMPLETED' ? 'LOCKED' : 'PUBLISHED', adminId]
-          );
-        }
-        totalEnrolls++;
+        await query(
+          `INSERT INTO dbo.grade_records (enrollment_id, attendance_score, continuous_score, final_exam_score, resit_exam_score, total_score, letter_grade, is_passed, status, entered_by)
+           VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)`,
+          [enrId, att, cont, finL1, resitL2, total, letter, passed ? 1 : 0, sec.status === 'COMPLETED' ? 'LOCKED' : 'PUBLISHED', adminId]
+        );
       }
     }
-    console.log(`- Đã khởi tạo ${totalEnrolls} lượt Đăng ký học phần và Bản ghi điểm gắn chặt với Lớp hành chính.`);
+    console.log(`- Đã khởi tạo thành công ${totalEnrolls} lượt Đăng ký học phần và Bản ghi điểm (Mỗi SV đúng 1 bản ghi / môn).`);
 
     // 12. Bài tập & Điểm danh & Học phí
     for (let si = 0; si < sectionObjs.length; si++) {
       const sec = sectionObjs[si];
       const title = `Bài tập tổng hợp học phần - ${sec.code}`;
       const desc = `Bài tập thực hành môn ${sec.courseCode}. Yêu cầu nộp báo cáo trước thời hạn.`;
-      const asgExists = await query('SELECT id FROM dbo.assignments WHERE title=@p1 AND course_section_id=@p2', [title, sec.id]);
-      let asgId;
-      if (!asgExists.rows.length) {
-        const ins = await query(
-          `INSERT INTO dbo.assignments (title, description, course_section_id, teacher_id, due_date)
-           OUTPUT INSERTED.id VALUES (@p1, @p2, @p3, @p4, '2026-12-30')`,
-          [title, desc, sec.id, adminId]
-        );
-        asgId = ins.rows[0].id;
-      } else {
-        asgId = asgExists.rows[0].id;
-      }
+      const insAsg = await query(
+        `INSERT INTO dbo.assignments (title, description, course_section_id, teacher_id, due_date)
+         OUTPUT INSERTED.id VALUES (@p1, @p2, @p3, @p4, '2026-12-30')`,
+        [title, desc, sec.id, adminId]
+      );
+      const asgId = insAsg.rows[0].id;
 
       // Tạo bài nộp mẫu cho 5 SV đầu tiên của LHP
       const enr = await query('SELECT student_id FROM dbo.enrollments WHERE course_section_id=@p1 ORDER BY student_id', [sec.id]);
       for (let vi = 0; vi < Math.min(enr.rows.length, 5); vi++) {
         const stId = enr.rows[vi].student_id;
-        const subExists = await query('SELECT id FROM dbo.submissions WHERE assignment_id=@p1 AND student_id=@p2', [asgId, stId]);
-        if (!subExists.rows.length) {
-          await query(
-            `INSERT INTO dbo.submissions (assignment_id, student_id, marks, remarks)
-             VALUES (@p1, @p2, 8.5, N'Bài làm hoàn thành tốt')`,
-            [asgId, stId]
-          );
-        }
+        await query(
+          `INSERT INTO dbo.submissions (assignment_id, student_id, marks, remarks)
+           VALUES (@p1, @p2, 8.5, N'Bài làm hoàn thành tốt')`,
+          [asgId, stId]
+        );
       }
     }
 
     // Học phí
     for (const st of studentObjs) {
-      const feeExists = await query('SELECT id FROM dbo.fees WHERE student_id=@p1', [st.sid]);
-      if (!feeExists.rows.length) {
-        await query(
-          `INSERT INTO dbo.fees (student_id, total_amount, paid_amount, due_amount, status, academic_year, description)
-           VALUES (@p1, 15000000, 15000000, 0, 'paid', N'2025-2026', N'Học phí Học kỳ I năm học 2025-2026')`,
-          [st.sid]
-        );
-      }
+      await query(
+        `INSERT INTO dbo.fees (student_id, total_amount, paid_amount, due_amount, status, academic_year, description)
+         VALUES (@p1, 15000000, 15000000, 0, 'paid', N'2025-2026', N'Học phí Học kỳ I năm học 2025-2026')`,
+        [st.sid]
+      );
     }
 
     // Điểm danh
@@ -469,38 +430,32 @@ async function getIdByCode(table, codeCol, code) {
     for (const sec of sectionObjs) {
       const enr = await query('SELECT student_id FROM dbo.enrollments WHERE course_section_id=@p1', [sec.id]);
       for (const st of enr.rows.slice(0, 10)) {
-        const attExists = await query('SELECT id FROM dbo.attendance WHERE student_id=@p1 AND section_id=@p2 AND date=@p3', [st.student_id, sec.id, todayStr]);
-        if (!attExists.rows.length) {
-          try {
-            await query(
-              `INSERT INTO dbo.attendance (student_id, section_id, date, status, remarks)
-               VALUES (@p1, @p2, @p3, 'present', N'Có mặt đúng giờ')`,
-              [st.student_id, sec.id, todayStr]
-            );
-          } catch (ign) {}
-        }
+        try {
+          await query(
+            `INSERT INTO dbo.attendance (student_id, section_id, date, status, remarks)
+             VALUES (@p1, @p2, @p3, 'present', N'Có mặt đúng giờ')`,
+            [st.student_id, sec.id, todayStr]
+          );
+        } catch (ign) {}
       }
     }
 
     // Thông báo học vụ từ Cố vấn học tập gửi Lớp hành chính
     for (const acCode of adminClassCodes) {
       const cId = adminClassMap[acCode];
-      const notiExists = await query('SELECT id FROM dbo.notices WHERE target_class_id=@p1', [cId]);
-      if (!notiExists.rows.length) {
-        await query(
-          `INSERT INTO dbo.notices (title, description, priority, target_role, target_class_id, created_by)
-           VALUES (N'Thông báo sinh hoạt lớp ' + @p1, N'Nhắc nhở toàn thể sinh viên kiểm tra lịch học tín chỉ và hoàn thiện học phí đúng hạn.', 'high', 'student', @p2, @p3)`,
-          [acCode, cId, adminId]
-        );
-      }
+      await query(
+        `INSERT INTO dbo.notices (title, description, priority, target_role, target_class_id, created_by)
+         VALUES (N'Thông báo sinh hoạt lớp ' + @p1, N'Nhắc nhở toàn thể sinh viên kiểm tra lịch học tín chỉ và hoàn thiện học phí đúng hạn.', 'high', 'student', @p2, @p3)`,
+        [acCode, cId, adminId]
+      );
     }
 
     console.log('\n================================================================');
-    console.log('  SEED V4 HOÀN TẤT — BỘ DỮ LIỆU MẪU MỚI KHÔNG TRÙNG LỊCH 100%!   ');
+    console.log('  SEED V5 HOÀN TẤT — MỖI MÔN ĐÚNG 1 LẦN, TOÀN VẸN RÀNG BUỘC 100%!  ');
     console.log('================================================================\n');
     process.exit(0);
   } catch (e) {
-    console.error('❌ Lỗi Seed V4:', e);
+    console.error('❌ Lỗi Seed V5:', e);
     process.exit(1);
   }
 })();

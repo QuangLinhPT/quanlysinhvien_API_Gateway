@@ -98,7 +98,7 @@ Hệ thống phân định rạch ròi giữa các vai trò nhằm đảm bảo 
 Hệ thống vận hành phân tán với 3 tiến trình độc lập. Hãy làm theo trình tự dưới đây:
 
 ### Bước 1: Chuẩn bị CSDL (SQL Server)
-Đảm bảo SQL Server đang hoạt động. Di chuyển vào thư mục `backend`, cài đặt thư viện và nạp bộ dữ liệu mẫu Tín chỉ V4 chuẩn hóa (100 sinh viên, 3 học kỳ, ma trận không trùng lịch 100%, giảng viên cố vấn & bộ môn chuẩn khoa, điểm thi lại L2):
+Đảm bảo SQL Server đang hoạt động. Di chuyển vào thư mục `backend`, cài đặt thư viện và nạp bộ dữ liệu mẫu Tín chỉ V5 chuẩn hóa (100 sinh viên, mỗi môn chỉ học 1 lần duy nhất trong toàn khóa, ma trận không trùng lịch 100%, giảng viên cố vấn & bộ môn chuẩn khoa, điểm thi lại L2):
 ```powershell
 cd backend
 npm install

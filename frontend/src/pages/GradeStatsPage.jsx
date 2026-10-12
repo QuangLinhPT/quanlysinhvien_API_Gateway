@@ -143,61 +143,154 @@ export default function GradeStatsPage() {
         </div>
       </div>
 
-      {/* TOOLBAR BỘ LỌC ĐA CHIỀU */}
-      <div className="card p-4 grid sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-slate-50 border border-slate-200">
-        {/* 1. Lọc Môn Học Cụ Thể (Yêu cầu mới) */}
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-          <select className="input text-xs font-bold text-emerald-800 border-emerald-300 bg-emerald-50/50" value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
-            <option value="">-- Tất cả Môn (GPA) --</option>
-            {courses.map(c => <option key={c.id} value={c.id}>Môn: {c.course_code} - {c.name}</option>)}
-          </select>
-        </div>
+      {/* TOOLBAR BỘ LỌC CHUYÊN BIỆT */}
+      {selectedCourse ? (
+        /* BỘ LỌC TINH GỌN KHI CHỌN MÔN HỌC CỤ THỂ: CHỈ GỒM CHỌN MÔN VÀ CHỌN LỚP HÀNH CHÍNH */
+        <div className="card p-4.5 bg-emerald-50/40 border border-emerald-200 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2 border-b border-emerald-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white font-bold text-xs">✓</span>
+              <span className="text-sm font-extrabold text-emerald-950 uppercase tracking-wide">
+                Chế độ xem: Bảng Điểm Môn Học Theo Lớp Hành Chính
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedCourse('')}
+              className="text-xs font-bold text-slate-600 hover:text-red-700 bg-white border border-slate-300 hover:border-red-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition"
+            >
+              <X className="w-3.5 h-3.5" /> Bỏ chọn môn (Quay về bảng ĐTB chung)
+            </button>
+          </div>
 
-        {/* 2. Lọc Lớp Hành chính */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Lớp HC:</span>
-          <select className="input text-xs font-medium" value={selectedAdminClass} onChange={e => setSelectedAdminClass(e.target.value)}>
-            <option value="">-- Tất cả Lớp HC --</option>
-            {availableClasses.map(ac => <option key={ac.id} value={ac.id}>{ac.code} - {ac.name}</option>)}
-          </select>
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+            {/* 1. Chọn Môn học */}
+            <div>
+              <label className="block text-[11px] font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                1. Môn Học (*)
+              </label>
+              <select
+                className="input text-xs font-extrabold text-emerald-900 bg-white border-emerald-300 w-full"
+                value={selectedCourse}
+                onChange={e => setSelectedCourse(e.target.value)}
+              >
+                {courses.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.course_code} - {c.name} ({c.credits} tín chỉ)
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* 3. Lọc Khóa tuyển sinh */}
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-brand-600 shrink-0" />
-          <select className="input text-xs font-medium" value={selectedCohort} onChange={e => { setSelectedCohort(e.target.value); setSelectedAdminClass('') }}>
-            <option value="">-- Tất cả Khóa --</option>
-            {cohorts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
-          </select>
-        </div>
+            {/* 2. Chọn Lớp hành chính */}
+            <div>
+              <label className="block text-[11px] font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                2. Lớp Hành Chính (*)
+              </label>
+              <select
+                className="input text-xs font-bold text-emerald-900 bg-white border-emerald-300 w-full"
+                value={selectedAdminClass}
+                onChange={e => setSelectedAdminClass(e.target.value)}
+              >
+                <option value="">-- Tất cả các Lớp Hành Chính --</option>
+                {adminClasses.map(ac => (
+                  <option key={ac.id} value={ac.id}>
+                    {ac.code} - {ac.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* 4. Lọc Học kỳ */}
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-brand-600 shrink-0" />
-          <select className="input text-xs font-medium" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
-            <option value="">-- Tất cả Học kỳ --</option>
-            {semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
+            {/* 3. Sắp xếp thứ hạng điểm môn */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Sắp Xếp Điểm Số
+              </label>
+              <select className="input text-xs font-medium w-full bg-white" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                <option value="gpa_desc">Điểm Tổng Kết (Cao ➔ Thấp)</option>
+                <option value="gpa_asc">Điểm Tổng Kết (Thấp ➔ Cao)</option>
+                <option value="name_asc">Họ và Tên (A - Z)</option>
+                <option value="code_asc">Mã Sinh Viên (MSSV)</option>
+              </select>
+            </div>
 
-        {/* 5. Sắp xếp điểm */}
-        <div className="flex items-center gap-2">
-          <ArrowUpDown className="w-4 h-4 text-brand-600 shrink-0" />
-          <select className="input text-xs font-medium" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="gpa_desc">Điểm (Cao ➔ Thấp)</option>
-            <option value="gpa_asc">Điểm (Thấp ➔ Cao)</option>
-            <option value="name_asc">Tên (A-Z)</option>
-            <option value="code_asc">MSSV</option>
-          </select>
+            {/* 4. Tìm kiếm trong lớp */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Tìm Sinh Viên
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  className="input pl-8.5 text-xs w-full bg-white"
+                  placeholder="Nhập tên hoặc MSSV..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
+      ) : (
+        /* BỘ LỌC ĐA CHIỀU KHI XEM ĐTB TÍCH LŨY / HỌC KỲ */
+        <div className="card p-4 grid sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-slate-50 border border-slate-200">
+          {/* 1. Chọn xem môn học */}
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+            <select
+              className="input text-xs font-bold text-emerald-800 border-emerald-300 bg-white"
+              value={selectedCourse}
+              onChange={e => setSelectedCourse(e.target.value)}
+            >
+              <option value="">-- Chọn Môn Học Cụ Thể --</option>
+              {courses.map(c => <option key={c.id} value={c.id}>Môn: {c.course_code} - {c.name}</option>)}
+            </select>
+          </div>
 
-        {/* 6. Tìm kiếm */}
-        <div className="flex items-center gap-2 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3" />
-          <input className="input pl-8 text-xs" placeholder="Tìm tên, MSSV..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          {/* 2. Lọc Lớp Hành chính */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Lớp HC:</span>
+            <select className="input text-xs font-medium" value={selectedAdminClass} onChange={e => setSelectedAdminClass(e.target.value)}>
+              <option value="">-- Tất cả Lớp HC --</option>
+              {availableClasses.map(ac => <option key={ac.id} value={ac.id}>{ac.code} - {ac.name}</option>)}
+            </select>
+          </div>
+
+          {/* 3. Lọc Khóa tuyển sinh */}
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-brand-600 shrink-0" />
+            <select className="input text-xs font-medium" value={selectedCohort} onChange={e => { setSelectedCohort(e.target.value); setSelectedAdminClass('') }}>
+              <option value="">-- Tất cả Khóa --</option>
+              {cohorts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+            </select>
+          </div>
+
+          {/* 4. Lọc Học kỳ */}
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-brand-600 shrink-0" />
+            <select className="input text-xs font-medium" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
+              <option value="">-- Tất cả Học kỳ --</option>
+              {semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          {/* 5. Sắp xếp điểm */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="w-4 h-4 text-brand-600 shrink-0" />
+            <select className="input text-xs font-medium" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="gpa_desc">ĐTB (Cao ➔ Thấp)</option>
+              <option value="gpa_asc">ĐTB (Thấp ➔ Cao)</option>
+              <option value="name_asc">Tên (A-Z)</option>
+              <option value="code_asc">MSSV</option>
+            </select>
+          </div>
+
+          {/* 6. Tìm kiếm */}
+          <div className="flex items-center gap-2 relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3" />
+            <input className="input pl-8 text-xs" placeholder="Tìm tên, MSSV..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* THỐNG KÊ TỔNG QUAN */}
       {isCourseMode && courseSummary ? (
@@ -325,15 +418,15 @@ export default function GradeStatsPage() {
                   <th className="w-12 text-center">STT</th>
                   <th>MSSV</th>
                   <th>Họ và Tên Sinh Viên</th>
-                  <th>Lớp HC</th>
+                  <th>Lớp Hành Chính</th>
                   <th>Mã LHP</th>
-                  <th className="text-center">Chuyên Cần (10%)</th>
-                  <th className="text-center">Quá Trình (30%)</th>
-                  <th className="text-center">Thi L1 (60%)</th>
-                  <th className="text-center">Thi L2</th>
-                  <th className="text-center">Tổng Kết (Hệ 10)</th>
-                  <th className="text-center">Điểm Chữ</th>
-                  <th className="text-center">Kết Quả</th>
+                  <th className="text-center font-bold text-slate-700">Điểm Chuyên Cần (10%)</th>
+                  <th className="text-center font-bold text-slate-700">Điểm Thường Xuyên (30%)</th>
+                  <th className="text-center font-bold text-slate-700">Điểm Thi Kết Thúc (60%)</th>
+                  <th className="text-center font-bold text-amber-800">Thi Lại L2</th>
+                  <th className="text-center font-extrabold text-brand-800">Điểm Tổng Kết (Hệ 10)</th>
+                  <th className="text-center font-bold">Điểm Chữ</th>
+                  <th className="text-center font-bold">Kết Quả</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,11 +440,11 @@ export default function GradeStatsPage() {
                     <td className="text-center font-bold text-slate-500">{st.rank}</td>
                     <td className="font-mono font-semibold text-brand-700">{st.student_code}</td>
                     <td className="font-medium text-slate-800">{st.student_name}</td>
-                    <td className="text-slate-600">{st.admin_class_code}</td>
+                    <td className="text-slate-600 font-medium">{st.admin_class_code}</td>
                     <td className="font-mono text-slate-500">{st.section_code}</td>
-                    <td className="text-center font-medium">{st.attendance_score ?? '—'}</td>
-                    <td className="text-center font-medium">{st.continuous_score ?? '—'}</td>
-                    <td className={`text-center font-semibold ${Number(st.final_exam_score) < 5.0 ? 'text-red-600 font-bold' : ''}`}>
+                    <td className="text-center font-semibold text-slate-700">{st.attendance_score ?? '—'}</td>
+                    <td className="text-center font-semibold text-slate-700">{st.continuous_score ?? '—'}</td>
+                    <td className={`text-center font-semibold ${Number(st.final_exam_score) < 5.0 ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
                       {st.final_exam_score ?? '—'}
                     </td>
                     <td className="text-center font-semibold text-amber-700">

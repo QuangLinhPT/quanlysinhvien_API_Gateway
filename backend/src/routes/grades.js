@@ -355,22 +355,14 @@ router.get('/statistics', authRequired, requireRoles('admin', 'staff', 'teacher'
     let targetAdminClassId = adminClassId;
 
     // NẾU CÓ CHỌN MÔN HỌC (courseId): Chuyển sang chế độ Thống kê Điểm Chi Tiết Môn Học Theo Lớp
-    if (courseId && !isNaN(parseInt(courseId, 10))) {
+    if (courseId && !isNaN(parseInt(courseId, 10)) && parseInt(courseId, 10) > 0) {
       const cId = parseInt(courseId, 10);
       const params = [cId];
       const whereClauses = ['cs.course_id = @p1'];
 
-      if (targetAdminClassId && !isNaN(parseInt(targetAdminClassId, 10))) {
+      if (targetAdminClassId && !isNaN(parseInt(targetAdminClassId, 10)) && parseInt(targetAdminClassId, 10) > 0) {
         params.push(parseInt(targetAdminClassId, 10));
         whereClauses.push(`s.administrative_class_id = @p${params.length}`);
-      }
-      if (semesterId && !isNaN(parseInt(semesterId, 10))) {
-        params.push(parseInt(semesterId, 10));
-        whereClauses.push(`cs.semester_id = @p${params.length}`);
-      }
-      if (academicYearId && !isNaN(parseInt(academicYearId, 10))) {
-        params.push(parseInt(academicYearId, 10));
-        whereClauses.push(`sem.academic_year_id = @p${params.length}`);
       }
       if (search && String(search).trim() !== '') {
         params.push(`%${String(search).trim()}%`);
